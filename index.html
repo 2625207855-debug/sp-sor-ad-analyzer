@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>SP/SOR广告分析工具</title>
   <script defer src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     :root {
       --bg: #f5f7fb;
@@ -31,6 +32,7 @@
     .titleBlock h1 { margin: 0; font-size: 26px; line-height: 1.2; font-weight: 760; letter-spacing: 0; }
     .titleBlock p { margin: 8px 0 0; color: var(--muted); font-size: 14px; line-height: 1.55; }
     .topActions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; }
+    .shareStatus { flex-basis: 100%; color: var(--muted); font-size: 12px; text-align: right; }
     .tabs { display: flex; gap: 8px; margin: 0 0 16px; padding: 6px; border: 1px solid var(--line); border-radius: 8px; background: #ffffff; box-shadow: 0 8px 28px rgba(30, 42, 58, 0.06); }
     .tabButton { min-height: 36px; padding: 0 14px; border-radius: 7px; color: #2d3946; background: transparent; font-weight: 760; }
     .tabButton.active { color: #ffffff; background: var(--teal); }
@@ -165,7 +167,7 @@
     .sourceFooter { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 10px; color: var(--muted); font-size: 12px; }
     .pager { display: flex; gap: 8px; }
     @media (max-width: 1100px) { .layout, .chartGrid { grid-template-columns: 1fr; } .kpiGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-    @media (max-width: 720px) { .app { width: min(100vw - 20px, 1440px); padding-top: 12px; } .topbar { grid-template-columns: 1fr; } .topActions { justify-content: flex-start; } .formGrid, .kpiGrid, .sourceToolbar, .coverageStats { grid-template-columns: 1fr; } .titleBlock h1 { font-size: 22px; } }
+    @media (max-width: 720px) { .app { width: min(100vw - 20px, 1440px); padding-top: 12px; } .topbar { grid-template-columns: 1fr; } .topActions { justify-content: flex-start; } .shareStatus { text-align: left; } .formGrid, .kpiGrid, .sourceToolbar, .coverageStats { grid-template-columns: 1fr; } .titleBlock h1 { font-size: 22px; } }
   </style>
 </head>
 <body>
@@ -176,9 +178,11 @@
         <p>保留历史文件、趋势图和来源明细；仅分析 SP 与 SOR，排除所有 SB / SBV 数据。</p>
       </div>
       <div class="topActions">
+        <button class="button secondary" id="copyShareLinkBtn" type="button">复制共享链接</button>
         <button class="button secondary" id="downloadRulesBtn" type="button">下载规则模板</button>
         <button class="button secondary" id="downloadSourcesBtn" type="button" disabled>下载来源明细 CSV</button>
         <button class="button" id="downloadWorkbookBtn" type="button" disabled>下载结果 Excel</button>
+        <div class="shareStatus" id="shareStatus">共享未连接</div>
       </div>
     </header>
     <nav class="tabs" aria-label="页面切换">
@@ -416,6 +420,9 @@ B0GS5GRK2Y`;
   const STORE_NAME = "files";
   const FALLBACK_KEY = "advertising-projector-analyzer-files-v2";
   const ASIN_KEY = "advertising-projector-analyzer-asins-v1";
+  const SUPABASE_URL = "https://wulbkldrfhdljwgutcjl.supabase.co";
+  const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_qomoFRv4SGkDGNNd1k7hgg_aAbjRvtY";
+  const SHARED_REPORTS_TABLE = "shared_reports";
 
   const TABLE_COLUMNS = {
     position: ["广告位置", "我方商品数", "竞品商品数", "总数量", "我方占比", "竞品占比"],
@@ -444,10 +451,15 @@ B0GS5GRK2Y`;
     targetAdDetailRows: [],
     newAdRecords: [],
     targetAdRecords: [],
-    keywordFilter: ""
+    keywordFilter: "",
+    shareId: "",
+    sharingReady: false,
+    applyingSharedSnapshot: false
   };
 
   const els = {};
+  let supabaseClient = null;
+  let sharedReportChannel = null;
 
   document.addEventListener("DOMContentLoaded", startApp);
 
@@ -456,9 +468,12 @@ B0GS5GRK2Y`;
     initDefaults();
     createKeywordFilter();
     bindEvents();
+    initSharing();
     await loadStoredLibrary();
+    await loadSharedReport();
     const migrated = await migrateNonSpSorHistory();
     refreshAll({ resetTrace: true });
+    subscribeSharedReport();
     if (migrated.reparsed || migrated.missingOriginal) {
       const parts = [];
       if (migrated.reparsed) parts.push(`已按 SP/SOR 规则重解析 ${migrated.reparsed} 个历史文件。`);
@@ -489,7 +504,7 @@ B0GS5GRK2Y`;
       "prevPageBtn", "nextPageBtn", "openSourcesBtn", "fileDateFilter", "fileKeywordFilter", "clearFileFiltersBtn",
       "coverageStats", "coverageTable", "missingList", "downloadRulesBtn", "downloadSourcesBtn",
       "downloadCurrentSourcesBtn", "downloadWorkbookBtn", "downloadPositionCsv",
-      "downloadKeywordCsv", "downloadDetailCsv", "clearSearchBtn"
+      "downloadKeywordCsv", "downloadDetailCsv", "clearSearchBtn", "copyShareLinkBtn", "shareStatus"
     ].forEach((id) => {
       els[id] = document.getElementById(id);
     });
@@ -687,6 +702,7 @@ B0GS5GRK2Y`;
       renderHistory();
     });
     els.downloadRulesBtn.addEventListener("click", downloadRules);
+    els.copyShareLinkBtn.addEventListener("click", copyShareLink);
     els.downloadSourcesBtn.addEventListener("click", () => {
       downloadCsv(sourceRowsForExport(state.filteredRecords), "来源明细.csv");
     });
@@ -704,6 +720,176 @@ B0GS5GRK2Y`;
       downloadCsv(stripRows(state.detailRows, TABLE_COLUMNS.detail), "分关键词分位置明细表.csv");
     });
     document.addEventListener("click", handleDocumentClick);
+  }
+
+  function initSharing() {
+    state.shareId = getShareId();
+    setShareStatus("正在连接共享数据...");
+
+    if (!window.supabase || !window.supabase.createClient) {
+      state.sharingReady = false;
+      setShareStatus("共享未连接：Supabase SDK 未加载");
+      return;
+    }
+
+    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+    state.sharingReady = true;
+    setShareStatus("共享已连接");
+  }
+
+  function getShareId() {
+    const params = new URLSearchParams(window.location.search);
+    const existing = params.get("share");
+    if (existing) return existing;
+
+    const shareId = window.crypto && window.crypto.randomUUID
+      ? window.crypto.randomUUID()
+      : `share-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    params.set("share", shareId);
+    const nextUrl = `${window.location.origin}${window.location.pathname}?${params.toString()}${window.location.hash}`;
+    window.history.replaceState({}, "", nextUrl);
+    return shareId;
+  }
+
+  function getShareUrl() {
+    const url = new URL(window.location.href);
+    url.searchParams.set("share", state.shareId);
+    return url.toString();
+  }
+
+  async function copyShareLink() {
+    if (state.sharingReady && state.storedFiles.length) {
+      await syncSharedReport("copy-link");
+    }
+    const shareUrl = getShareUrl();
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setShareStatus("共享链接已复制");
+      setNotice("共享链接已复制。对方打开这个链接后，会看到同一份云端分析结果。");
+    } catch {
+      setShareStatus("请手动复制地址栏链接");
+      setNotice(shareUrl);
+    }
+  }
+
+  async function loadSharedReport() {
+    if (!state.sharingReady || !supabaseClient || !state.shareId) return false;
+
+    const { data, error } = await supabaseClient
+      .from(SHARED_REPORTS_TABLE)
+      .select("result, updated_at")
+      .eq("share_id", state.shareId)
+      .maybeSingle();
+
+    if (error) {
+      console.error("读取共享结果失败：", error);
+      setShareStatus("共享读取失败，请检查 Supabase 表和权限");
+      return false;
+    }
+
+    if (!data || !data.result) {
+      setShareStatus("共享已连接，暂无云端数据");
+      return false;
+    }
+
+    applySharedSnapshot(data.result);
+    setShareStatus(`已加载云端数据：${formatDateTime(data.updated_at)}`);
+    return true;
+  }
+
+  function subscribeSharedReport() {
+    if (!state.sharingReady || !supabaseClient || !state.shareId || sharedReportChannel) return;
+
+    sharedReportChannel = supabaseClient
+      .channel(`shared-report-${state.shareId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: SHARED_REPORTS_TABLE,
+          filter: `share_id=eq.${state.shareId}`
+        },
+        (payload) => {
+          if (!payload.new || !payload.new.result || state.applyingSharedSnapshot) return;
+          applySharedSnapshot(payload.new.result);
+          setShareStatus(`收到云端更新：${formatDateTime(payload.new.updated_at)}`);
+        }
+      )
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") {
+          setShareStatus("共享实时监听中");
+        }
+      });
+  }
+
+  async function syncSharedReport(reason = "manual") {
+    if (!state.sharingReady || !supabaseClient || !state.shareId || state.applyingSharedSnapshot) {
+      return false;
+    }
+
+    const snapshot = makeSharedSnapshot(reason);
+    const { error } = await supabaseClient
+      .from(SHARED_REPORTS_TABLE)
+      .upsert({
+        share_id: state.shareId,
+        title: "SP/SOR广告分析",
+        result: snapshot,
+        updated_at: new Date().toISOString()
+      }, { onConflict: "share_id" });
+
+    if (error) {
+      console.error("同步共享结果失败：", error);
+      setShareStatus("共享同步失败，请检查网络或 Supabase 权限");
+      return false;
+    }
+
+    setShareStatus(`共享已同步：${formatDateTime(snapshot.savedAt)}`);
+    return true;
+  }
+
+  function makeSharedSnapshot(reason) {
+    return {
+      version: 1,
+      reason,
+      savedAt: new Date().toISOString(),
+      asinText: els.asinText.value,
+      rules: getRulesFromForm(),
+      storedFiles: state.storedFiles.map(stripBufferFromFile)
+    };
+  }
+
+  function applySharedSnapshot(snapshot) {
+    state.applyingSharedSnapshot = true;
+    try {
+      if (typeof snapshot.asinText === "string") {
+        els.asinText.value = snapshot.asinText;
+        saveAsins();
+        updateAsinCount();
+      }
+      if (snapshot.rules) {
+        applyRulesToForm(mergeRules(snapshot.rules));
+      }
+      if (Array.isArray(snapshot.storedFiles)) {
+        state.storedFiles = snapshot.storedFiles.map(stripBufferFromFile);
+      }
+      refreshAll({ resetTrace: true });
+    } finally {
+      state.applyingSharedSnapshot = false;
+    }
+  }
+
+  function setShareStatus(message) {
+    if (els.shareStatus) {
+      els.shareStatus.textContent = message;
+    }
+  }
+
+  function formatDateTime(value) {
+    const date = value ? new Date(value) : new Date();
+    if (Number.isNaN(date.getTime())) return "";
+    const pad = (num) => String(num).padStart(2, "0");
+    return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
   }
 
   async function handleWorkbookUpload() {
@@ -788,6 +974,9 @@ B0GS5GRK2Y`;
       if (savedCount) parts.push(`新增保存 ${savedCount} 个文件，解析 ${recordCount} 条来源记录。`);
       if (skipped.length) parts.push(`已跳过重复：${skipped.join("；")}`);
       setUploadNotice(parts.join(" ") || "没有新增文件。", skipped.length ? "error" : "info");
+      if (savedCount) {
+        await syncSharedReport("upload");
+      }
     } catch (error) {
       setUploadNotice(error.message || String(error), "error");
     } finally {
@@ -828,6 +1017,7 @@ B0GS5GRK2Y`;
       refreshAll({ resetTrace: true });
       const note = missingOriginal ? `；${missingOriginal} 个历史文件缺少原始文件缓存，仅沿用已解析记录` : "";
       setNotice(`已按当前规则刷新 ${reparsed} 个历史文件${note}。`);
+      await syncSharedReport("refresh-rules");
     } catch (error) {
       setNotice(error.message || String(error), "error");
     } finally {
@@ -858,6 +1048,7 @@ B0GS5GRK2Y`;
       updateAsinCount();
       refreshAll({ resetTrace: false });
       setNotice(`已导入 ${asins.length} 个我品 ASIN。`);
+      await syncSharedReport("asin-import");
     } catch (error) {
       setNotice(error.message || String(error), "error");
     } finally {
@@ -2132,6 +2323,7 @@ B0GS5GRK2Y`;
       await loadStoredLibrary();
       refreshAll({ resetTrace: true });
       setNotice(`已删除：${file.fileName}`);
+      await syncSharedReport("delete-file");
     } catch (error) {
       setNotice(error.message || String(error), "error");
     }
