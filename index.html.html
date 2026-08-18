@@ -1,0 +1,2725 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SP/SOR广告分析工具</title>
+  <script defer src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <style>
+    :root {
+      --bg: #f5f7fb;
+      --surface: #ffffff;
+      --surface-2: #eef3f2;
+      --ink: #15202b;
+      --muted: #5d6977;
+      --line: #d9e0e7;
+      --teal: #18746b;
+      --teal-dark: #11554f;
+      --red: #b94f45;
+      --amber: #f59e0b;
+      --violet: #6750a4;
+      --shadow: 0 16px 45px rgba(30, 42, 58, 0.10);
+      --radius: 8px;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; color: var(--ink); background: var(--bg); font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif; letter-spacing: 0; }
+    button, input, textarea, select { font: inherit; }
+    button { border: 0; cursor: pointer; }
+    button:disabled { cursor: not-allowed; opacity: 0.55; }
+    .app { width: min(1680px, calc(100vw - 28px)); margin: 0 auto; padding: 24px 0 42px; }
+    .topbar { display: grid; grid-template-columns: minmax(280px, 1fr) auto; gap: 18px; align-items: end; padding: 20px 0 18px; }
+    .titleBlock h1 { margin: 0; font-size: 26px; line-height: 1.2; font-weight: 760; letter-spacing: 0; }
+    .titleBlock p { margin: 8px 0 0; color: var(--muted); font-size: 14px; line-height: 1.55; }
+    .topActions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; }
+    .tabs { display: flex; gap: 8px; margin: 0 0 16px; padding: 6px; border: 1px solid var(--line); border-radius: 8px; background: #ffffff; box-shadow: 0 8px 28px rgba(30, 42, 58, 0.06); }
+    .tabButton { min-height: 36px; padding: 0 14px; border-radius: 7px; color: #2d3946; background: transparent; font-weight: 760; }
+    .tabButton.active { color: #ffffff; background: var(--teal); }
+    .tabPanel { display: none; }
+    .tabPanel.active { display: block; }
+    .button { display: inline-flex; align-items: center; justify-content: center; min-height: 38px; padding: 0 14px; border-radius: 8px; border: 1px solid transparent; color: #ffffff; background: var(--teal); font-weight: 680; white-space: nowrap; }
+    .button:hover { background: var(--teal-dark); }
+    .button.secondary { color: var(--ink); background: #ffffff; border-color: var(--line); }
+    .button.secondary:hover { background: #f7fafc; }
+    .button.warn { background: #a23f37; }
+    .button.small { min-height: 30px; padding: 0 10px; font-size: 12px; border-radius: 7px; }
+    .layout { display: grid; grid-template-columns: minmax(300px, 390px) minmax(0, 1fr); gap: 16px; align-items: start; }
+    .panel { min-width: 0; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+    .panel + .panel { margin-top: 14px; }
+    .panelHeader { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 16px 0; }
+    .panelHeader h2, .panelHeader h3 { margin: 0; font-size: 16px; line-height: 1.2; font-weight: 760; letter-spacing: 0; }
+    .panelBody { min-width: 0; padding: 16px; }
+    .sectionLabel { display: block; margin: 0 0 8px; color: #2d3946; font-size: 13px; font-weight: 720; }
+    .dropZone { position: relative; display: grid; gap: 8px; min-height: 112px; padding: 18px; align-content: center; border: 1px dashed #9fb5ba; border-radius: 8px; background: linear-gradient(135deg, #f7fbfa, #f8fafc); }
+    .dropZone input { width: 100%; }
+    .dropTitle { font-weight: 760; }
+    .hint { color: var(--muted); font-size: 12px; line-height: 1.45; }
+    .fileList { display: grid; gap: 6px; margin-top: 10px; max-height: 220px; overflow: auto; }
+    .filePill { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; padding: 8px 10px; border: 1px solid #dce4eb; border-radius: 8px; background: #fbfcfe; font-size: 12px; }
+    .filePill strong, .filePill span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .fileMeta { display: block; margin-top: 4px; color: var(--muted); font-size: 11px; font-weight: 560; }
+    .fileActions { display: flex; gap: 6px; align-items: center; }
+    textarea, input[type="text"], input[type="number"], input[type="date"], input[type="time"], select { width: 100%; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--ink); outline: none; }
+    textarea:focus, input:focus { border-color: #81aaa5; box-shadow: 0 0 0 3px rgba(24, 116, 107, 0.12); }
+    textarea { min-height: 168px; resize: vertical; padding: 10px 12px; line-height: 1.45; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; }
+    input[type="text"], input[type="number"], input[type="date"], input[type="time"], select { height: 38px; padding: 0 10px; }
+    input[type="file"] { max-width: 100%; color: var(--muted); font-size: 12px; }
+    .formGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    .field { display: grid; gap: 6px; }
+    .field.full { grid-column: 1 / -1; }
+    .field label { color: #334050; font-size: 12px; font-weight: 720; }
+    .ruleBand { display: grid; gap: 12px; padding: 12px; border: 1px solid #e3e9ee; border-radius: 8px; background: #fbfcfd; }
+    .ruleBand h4 { margin: 0; font-size: 13px; font-weight: 780; }
+    .notice { display: none; margin-top: 12px; padding: 10px 12px; border-radius: 8px; border: 1px solid #bcd7d3; background: #edf7f5; color: #174e49; font-size: 13px; line-height: 1.45; }
+    .notice.error { border-color: #efc2bd; background: #fff0ee; color: #8d332c; }
+    .notice.show { display: block; }
+    .dashboard { display: grid; gap: 14px; min-width: 0; }
+    .kpiGrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+    .kpi { min-height: 104px; padding: 14px; border-radius: 8px; border: 1px solid var(--line); background: #ffffff; box-shadow: 0 8px 28px rgba(30, 42, 58, 0.07); }
+    .kpi span { display: block; color: var(--muted); font-size: 12px; font-weight: 720; }
+    .kpi strong { display: block; margin-top: 10px; font-size: 30px; line-height: 1; letter-spacing: 0; }
+    .kpi small { display: block; margin-top: 8px; color: var(--muted); font-size: 12px; }
+    .chartGrid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; }
+    .chartPanel { min-height: 238px; padding: 16px; border-radius: 8px; border: 1px solid var(--line); background: #ffffff; box-shadow: 0 8px 28px rgba(30, 42, 58, 0.07); }
+    .chartPanel h3 { margin: 0; font-size: 15px; font-weight: 780; }
+    .chartHeader { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+    .chartHeader .button { display: none; }
+    .chartHeader.drilled .button { display: inline-flex; }
+    .stackList, .keywordBars { display: grid; gap: 12px; }
+    .barRow { display: grid; gap: 7px; }
+    .barRow.drillable { padding: 8px; margin: -8px; border-radius: 8px; cursor: pointer; }
+    .barRow.drillable:hover { background: #f4faf8; }
+    .barMeta { display: flex; justify-content: space-between; gap: 10px; color: #2f3d4a; font-size: 12px; font-weight: 720; }
+    .stackBar { display: flex; width: 100%; height: 14px; overflow: hidden; border-radius: 999px; background: #e8edf2; }
+    .ownSeg { min-width: 0; background: var(--teal); }
+    .compSeg { min-width: 0; background: var(--red); }
+    .legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 12px; color: var(--muted); font-size: 12px; }
+    .legendItem { display: inline-flex; align-items: center; gap: 6px; }
+    .dot { width: 9px; height: 9px; border-radius: 999px; background: var(--teal); }
+    .dot.comp { background: var(--red); }
+    .dot.alt { background: var(--violet); }
+    .trendPanel { margin-top: 14px; padding: 14px; border: 1px solid #e1e8ee; border-radius: 8px; background: #fbfcfd; }
+    .trendHeader { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 12px; }
+    .trendHeader h3 { margin: 0; font-size: 14px; font-weight: 780; }
+    .trendMeta { color: var(--muted); font-size: 12px; white-space: nowrap; }
+    .trendChart { display: grid; gap: 10px; min-height: 80px; }
+    .trendRow { display: grid; grid-template-columns: minmax(170px, 260px) minmax(260px, 1fr) 94px; gap: 10px; align-items: center; font-size: 12px; }
+    .trendLabel { overflow-wrap: anywhere; color: #344151; font-weight: 720; line-height: 1.25; }
+    .trendBars { display: flex; gap: 8px; align-items: stretch; min-height: 76px; padding: 6px 0 0; border-bottom: 1px solid #d8e1e8; overflow-x: auto; }
+    .trendBucket { position: relative; flex: 1 1 0; min-width: 118px; min-height: 74px; display: grid; grid-template-rows: auto auto auto; gap: 6px; align-content: center; padding: 8px 10px; border: 1px solid #dce5ee; border-radius: 8px; background: #f8fafc; overflow: hidden; }
+    .trendBucket.stack100 { min-height: 78px; }
+    .trendBucket.emptyBucket { color: #84909c; background: #f2f5f7; }
+    .trendAxisRow { color: var(--muted); font-size: 11px; }
+    .trendAxisRow .trendBars { min-height: 22px; align-items: center; border-bottom: 0; }
+    .trendAxisLabel { flex: 1 1 0; min-width: 118px; overflow: hidden; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
+    .trendCellTotal { color: #26333f; font-size: 13px; font-weight: 820; line-height: 1.1; }
+    .trendMiniBar { width: 100%; display: flex; height: 10px; border-radius: 999px; background: #e8edf2; overflow: hidden; }
+    .trendOwn { background: var(--teal); }
+    .trendComp { background: var(--red); }
+    .trendRatioText { color: #344151; font-size: 11px; line-height: 1.25; white-space: nowrap; }
+    .trendStackBar { width: 100%; display: flex; flex-direction: column-reverse; height: 46px; border-radius: 7px; background: #e8edf2; overflow: hidden; }
+    .trendOwnPctLabel { color: #26333f; font-size: 12px; font-weight: 820; line-height: 1.1; }
+    .trendLineCell { position: relative; min-width: 118px; min-height: 74px; display: grid; place-items: center; border: 1px solid #dce5ee; border-radius: 8px; background: #f8fafc; }
+    .trendLineSvg { width: 100%; min-width: 118px; height: 80px; overflow: visible; }
+    .trendLinePath { fill: none; stroke: var(--teal); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+    .trendLinePoint { fill: #fff; stroke: var(--teal); stroke-width: 2; }
+    .trendLineText { fill: #26333f; font-size: 11px; font-weight: 760; text-anchor: middle; }
+    .trendValue { text-align: right; color: #344151; font-variant-numeric: tabular-nums; font-weight: 720; }
+    .trendControl { display: grid; gap: 6px; }
+    .trendControl span { color: #334050; font-size: 12px; font-weight: 720; }
+    .trendControl select { width: 100%; height: 38px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--ink); outline: none; }
+    .tablesStack { display: grid; gap: 14px; min-width: 0; }
+    .tableTools { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
+    .tableWrap { max-width: 100%; overflow: auto; scrollbar-gutter: stable; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .summaryTable { min-width: 760px; }
+    .detailSummaryTable { min-width: 900px; }
+    .sourceTable { min-width: 1320px; }
+    th, td { padding: 10px 12px; border-bottom: 1px solid #e8edf2; text-align: left; vertical-align: middle; white-space: nowrap; }
+    th { position: sticky; top: 0; z-index: 1; color: #344151; background: #f8fafc; font-size: 12px; font-weight: 780; }
+    tbody tr:hover { background: #f6fbfa; }
+    tbody tr.traceable { cursor: pointer; }
+    tbody tr.summaryTotal { background: #faf7ef; font-weight: 780; }
+    tbody tr.sourceSelected { background: #edf7f5; outline: 2px solid rgba(24, 116, 107, 0.18); }
+    .num { text-align: right; font-variant-numeric: tabular-nums; }
+    .tag { display: inline-flex; align-items: center; height: 24px; padding: 0 8px; border-radius: 999px; background: #edf7f5; color: var(--teal-dark); font-size: 12px; font-weight: 720; }
+    .tag.comp { background: #fff8dc; color: #7a5600; }
+    .sourceToolbar { display: grid; grid-template-columns: minmax(260px, 1fr) auto auto; gap: 10px; align-items: center; margin-bottom: 10px; }
+    .sourceLanding { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px; align-items: center; }
+    .sourceLandingText { color: var(--muted); font-size: 13px; line-height: 1.45; }
+    .traceLabel { color: var(--muted); font-size: 13px; font-weight: 680; }
+    .sourceFocus { display: none; margin: 10px 0; padding: 10px 12px; border: 1px solid #bcd7d3; border-radius: 8px; background: #edf7f5; color: #174e49; font-size: 12px; line-height: 1.5; }
+    .sourceFocus.show { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .sourceFocusText { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .filterStatus { margin-top: 10px; color: var(--muted); font-size: 12px; line-height: 1.45; }
+    .coverageGrid { display: grid; gap: 14px; }
+    .coverageStats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+    .coverageCard { padding: 14px; border: 1px solid var(--line); border-radius: 8px; background: #ffffff; }
+    .coverageCard span { display: block; color: var(--muted); font-size: 12px; font-weight: 720; }
+    .coverageCard strong { display: block; margin-top: 8px; font-size: 24px; line-height: 1; }
+    .coverageTable { min-width: 840px; }
+    .coverageTable td.missing { background: #fff0ee; color: #94342e; font-weight: 780; }
+    .coverageTable td.present { background: #edf7f5; color: var(--teal-dark); font-weight: 780; }
+    .missingList { display: grid; gap: 8px; max-height: 180px; overflow: auto; }
+    .missingItem { padding: 8px 10px; border: 1px solid #efc2bd; border-radius: 8px; background: #fff7f5; color: #8d332c; font-size: 12px; line-height: 1.45; }
+    .empty { padding: 22px; color: var(--muted); text-align: center; font-size: 13px; }
+    .sourceFooter { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 10px; color: var(--muted); font-size: 12px; }
+    .pager { display: flex; gap: 8px; }
+    @media (max-width: 1100px) { .layout, .chartGrid { grid-template-columns: 1fr; } .kpiGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (max-width: 720px) { .app { width: min(100vw - 20px, 1440px); padding-top: 12px; } .topbar { grid-template-columns: 1fr; } .topActions { justify-content: flex-start; } .formGrid, .kpiGrid, .sourceToolbar, .coverageStats { grid-template-columns: 1fr; } .titleBlock h1 { font-size: 22px; } }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header class="topbar">
+      <div class="titleBlock">
+        <h1>SP/SOR广告分析工具</h1>
+        <p>保留历史文件、趋势图和来源明细；仅分析 SP 与 SOR，排除所有 SB / SBV 数据。</p>
+      </div>
+      <div class="topActions">
+        <button class="button secondary" id="downloadRulesBtn" type="button">下载规则模板</button>
+        <button class="button secondary" id="downloadSourcesBtn" type="button" disabled>下载来源明细 CSV</button>
+        <button class="button" id="downloadWorkbookBtn" type="button" disabled>下载结果 Excel</button>
+      </div>
+    </header>
+    <nav class="tabs" aria-label="页面切换">
+      <button class="tabButton active" id="summaryTabBtn" type="button" data-tab-target="summary">汇总分析</button>
+      <button class="tabButton" id="filesTabBtn" type="button" data-tab-target="files">已有文件</button>
+      <button class="tabButton" id="sourcesTabBtn" type="button" data-tab-target="sources">数据源明细</button>
+    </nav>
+    <section class="tabPanel active" id="summaryTab">
+    <div class="layout">
+      <aside>
+        <section class="panel">
+          <div class="panelHeader"><h2>上传数据</h2></div>
+          <div class="panelBody">
+            <label class="sectionLabel" for="workbookFiles">新增上传广告放映机 Excel</label>
+            <div class="dropZone">
+              <div class="dropTitle">历史文件会保留，只需要新增上传</div>
+              <input id="workbookFiles" type="file" accept=".xlsx,.xls,.xlsm" multiple>
+              <div class="hint">文件名默认按"广告放映机_关键词_日期"识别；仅解析 SP / SOR，重复文件名会跳过并提示。</div>
+            </div>
+            <div class="filterStatus" id="historyStats">已保存 0 个历史文件</div>
+            <div class="notice" id="uploadNotice"></div>
+          </div>
+        </section>
+        <section class="panel">
+          <div class="panelHeader"><h2>日期时间筛选</h2></div>
+          <div class="panelBody">
+            <div class="formGrid">
+              <div class="field"><label for="dateStart">开始日期</label><input id="dateStart" type="date"></div>
+              <div class="field"><label for="dateEnd">结束日期</label><input id="dateEnd" type="date"></div>
+              <div class="field"><label for="timeStart">开始时间</label><input id="timeStart" type="time" step="3600"></div>
+              <div class="field"><label for="timeEnd">结束时间</label><input id="timeEnd" type="time" step="3600"></div>
+              <div class="field trendControl"><span>趋势粒度</span><select id="trendPeriod"><option value="day">按天</option><option value="week">按周</option><option value="month">按月</option></select></div>
+              <div class="field trendControl"><span>趋势图样式</span><select id="trendStyle"><option value="matrix">总量与比例矩阵</option><option value="line">我品占比折线图</option><option value="stack100">百分比堆积柱状图</option></select></div>
+            </div>
+            <div class="topActions" style="justify-content:flex-start;margin-top:14px">
+              <button class="button" id="applyFiltersBtn" type="button">应用筛选</button>
+              <button class="button secondary" id="clearFiltersBtn" type="button">清空筛选</button>
+            </div>
+            <div class="filterStatus" id="filterStatus">当前筛选：全部日期 / 全部时间</div>
+          </div>
+        </section>
+        <section class="panel">
+          <div class="panelHeader"><h2>我品 ASIN</h2><input id="asinFile" type="file" accept=".txt,.csv,.xlsx,.xls,.xlsm"></div>
+          <div class="panelBody">
+            <label class="sectionLabel" for="asinText">ASIN 清单</label>
+            <textarea id="asinText" spellcheck="false"></textarea>
+            <div class="hint" id="asinCount">已识别 0 个我品 ASIN</div>
+          </div>
+        </section>
+        <section class="panel">
+          <div class="panelHeader"><h2>位置规则</h2><input id="rulesFile" type="file" accept=".json"></div>
+          <div class="panelBody">
+            <div class="formGrid">
+              <div class="field full"><label for="spSheets">SP Sheet 名称</label><input id="spSheets" type="text"></div>
+              <div class="field full"><label for="sorSheets">SOR Sheet 名称</label><input id="sorSheets" type="text"></div>
+              <div class="field full ruleBand"><h4>SP 位置</h4>
+                <div class="formGrid">
+                  <div class="field"><label for="tosStart">TOS 起始 P1</label><input id="tosStart" type="number" min="1" value="1"></div>
+                  <div class="field"><label for="tosEnd">TOS 结束 P1</label><input id="tosEnd" type="number" min="1" value="4"></div>
+                  <div class="field"><label for="rosStart">ROS 起始 P1</label><input id="rosStart" type="number" min="1" value="5"></div>
+                  <div class="field"><label for="rosEnd">ROS 结束 P1</label><input id="rosEnd" type="number" min="1" value="12"></div>
+                </div>
+              </div>
+              <div class="field full ruleBand"><h4>SOR 位置</h4>
+                <div class="formGrid">
+                  <div class="field"><label for="sorPage">页码</label><input id="sorPage" type="text" value="第1页"></div>
+                  <div class="field"><label for="middleStart">中部起始行</label><input id="middleStart" type="number" min="1" value="1"></div>
+                  <div class="field"><label for="middleEnd">中部结束行</label><input id="middleEnd" type="number" min="1" value="5"></div>
+                  <div class="field"><label for="bottomStart">底部起始行</label><input id="bottomStart" type="number" min="1" value="6"></div>
+                  <div class="field"><label for="bottomEnd">底部结束行</label><input id="bottomEnd" type="number" min="1" value="10"></div>
+                </div>
+              </div>
+            </div>
+            <div class="topActions" style="justify-content:flex-start;margin-top:14px">
+              <button class="button" id="analyzeBtn" type="button">刷新汇总</button>
+              <button class="button secondary" id="resetTraceBtn" type="button">查看全部来源</button>
+            </div>
+            <div class="notice" id="notice"></div>
+          </div>
+        </section>
+      </aside>
+      <section class="dashboard">
+        <div class="kpiGrid" id="kpiGrid">
+          <div class="kpi"><span>文件数</span><strong>0</strong><small>待上传</small></div>
+          <div class="kpi"><span>总展示次数</span><strong>0</strong><small>SP + SOR</small></div>
+          <div class="kpi"><span>我方占比</span><strong>0%</strong><small>清单内 ASIN</small></div>
+          <div class="kpi"><span>竞品占比</span><strong>0%</strong><small>其他 B0 ASIN</small></div>
+        </div>
+        <div class="chartGrid">
+          <section class="chartPanel">
+            <div class="chartHeader" id="positionChartHeader"><h3 id="positionChartTitle">按位置占比</h3><button class="button secondary small" id="resetPositionDrill" type="button">返回位置</button></div>
+            <div class="stackList" id="positionChart"></div>
+            <div class="legend"><span class="legendItem"><i class="dot"></i>我方</span><span class="legendItem"><i class="dot comp"></i>竞品</span></div>
+          </section>
+          <section class="chartPanel">
+            <div class="chartHeader" id="keywordChartHeader"><h3 id="keywordChartTitle">按关键词占比</h3><button class="button secondary small" id="resetKeywordDrill" type="button">返回关键词</button></div>
+            <div class="keywordBars" id="keywordChart"></div>
+            <div class="legend"><span class="legendItem"><i class="dot"></i>我方</span><span class="legendItem"><i class="dot comp"></i>竞品</span></div>
+          </section>
+        </div>
+        <div class="tablesStack">
+          <section class="panel"><div class="panelHeader"><h2>表格 1：按位置汇总表（合并全部关键词）</h2><div class="tableTools"><button class="button secondary small" id="downloadPositionCsv" type="button" disabled>下载 CSV</button></div></div><div class="panelBody"><div class="tableWrap" id="positionTable"></div><div class="trendPanel"><div class="trendHeader"><h3>按位置趋势</h3><span class="trendMeta" id="positionTrendMeta">按天</span></div><div class="trendChart" id="positionTrend"></div></div></div></section>
+          <section class="panel"><div class="panelHeader"><h2>表格 2：按关键词汇总表（单关键词整体统计）</h2><div class="tableTools"><button class="button secondary small" id="downloadKeywordCsv" type="button" disabled>下载 CSV</button></div></div><div class="panelBody"><div class="tableWrap" id="keywordTable"></div><div class="trendPanel"><div class="trendHeader"><h3>按关键词趋势</h3><span class="trendMeta" id="keywordTrendMeta">按天</span></div><div class="trendChart" id="keywordTrend"></div></div></div></section>
+          <section class="panel"><div class="panelHeader"><h2>表格 3：分关键词 + 分位置明细表（精细维度）</h2><div class="tableTools"><button class="button secondary small" id="downloadDetailCsv" type="button" disabled>下载 CSV</button></div></div><div class="panelBody"><div class="tableWrap" id="detailTable"></div><div class="trendPanel"><div class="trendHeader"><h3>关键词 + 位置组合趋势</h3><span class="trendMeta" id="detailTrendMeta">按天</span></div><div class="trendChart" id="detailTrend"></div></div></div></section>
+          <section class="panel"><div class="panelHeader"><h2>数据源</h2></div><div class="panelBody"><div class="sourceLanding"><div class="sourceLandingText">数据源明细已放入当前页面的独立 tab，点击汇总行也会自动切换过去。<span id="sourceSummaryInfo">0 条</span></div><button class="button" id="openSourcesBtn" type="button">打开数据源 tab</button></div></div></section>
+        </div>
+      </section>
+    </div>
+    </section>
+    <section class="tabPanel" id="filesTab">
+      <section class="panel"><div class="panelHeader"><h2>已有文件</h2></div><div class="panelBody"><div class="formGrid"><div class="field"><label for="fileDateFilter">筛选日期</label><input id="fileDateFilter" type="date"></div><div class="field"><label for="fileKeywordFilter">筛选关键词</label><input id="fileKeywordFilter" type="text" placeholder="输入 keyword"></div><div class="field" style="align-self:end"><button class="button secondary" id="clearFileFiltersBtn" type="button">清空文件筛选</button></div></div><div class="fileList" id="fileList"></div></div></section>
+      <section class="panel"><div class="panelHeader"><h2>日期 × 关键词覆盖检查</h2></div><div class="panelBody"><div class="coverageGrid"><div class="coverageStats" id="coverageStats"></div><div class="tableWrap" id="coverageTable"></div><div class="missingList" id="missingList"></div></div></div></section>
+    </section>
+    <section class="tabPanel" id="sourcesTab">
+      <section class="panel"><div class="panelHeader"><h2>数据源明细</h2><div class="tableTools"><button class="button secondary small" id="downloadCurrentSourcesBtn" type="button" disabled>下载当前来源</button></div></div><div class="panelBody"><div class="sourceToolbar"><input id="sourceSearch" type="text" placeholder="搜索文件、关键词、ASIN、时间、单元格"><button class="button secondary small" id="clearSearchBtn" type="button">清空搜索</button></div><div class="traceLabel" id="traceLabel">当前显示：全部来源</div><div class="sourceFocus" id="sourceFocus"></div><div class="tableWrap" id="sourceTable"></div><div class="sourceFooter"><span id="sourcePageInfo">0 条</span><div class="pager"><button class="button secondary small" id="prevPageBtn" type="button">上一页</button><button class="button secondary small" id="nextPageBtn" type="button">下一页</button></div></div></div></section>
+    </section>
+  </main>
+  <script>
+(() => {
+  const DEFAULT_ASINS = `B08FKWL35P
+B08YDM8LPX
+B07NRB5G3Q
+B07ZYFXLZ6
+B07TH5NMQG
+B088CZKD2T
+B083CPHN8Q
+B08DJ1K88L
+B08H4ZLYRC
+B0D1QZ7SHB
+B08N4DD8HQ
+B09P7WS4P7
+B0B4T76DCW
+B0BPMFNJYR
+B07X1XMFH6
+B088DB4P5C
+B08FMGPYQ2
+B08YDJJKSX
+B08H4DK2NN
+B0B4T93H24
+B0B4TDJGP1
+B08YDDCBDZ
+B0C2TW563N
+B0C2TT6N6V
+B097THCBLR
+B09W8PNNPW
+B0B4SWGHRT
+B0BPM8G7X6
+B09BJCQQVD
+B09W8LZZMJ
+B0B4SVQMJD
+B0B526XWBT
+B01H1NV1RE
+B01N7M6DYA
+B01LWSUXU7
+B07CVSQ4Q7
+B07K8F2HMB
+B07WZCJVNC
+B07WPS5TH4
+B097MN78FS
+B08FM3W17Z
+B09BJD2VJX
+B09W8L8DNG
+B09BN1FGHM
+B0FWZJWMTV
+B0FWZLFJRQ
+B0FWRPRHWD
+B0FWZJXS1D
+B0FWZKVHCX
+B0FWRTV52P
+B0FWRMJ8NZ
+B0FWRMLG2G
+B0G4QSCZWS
+B0G4QX6LWW
+B0G4QTYJ76
+B0G4QW84WD
+B0G4QW4XL8
+B0G4QYF5HX
+B0G4QVDD5X
+B0G4QYW2MQ
+B0GS5GRK2Y`;
+
+  const DEFAULT_RULES = {
+    spSheetNames: ["广告放映机-SP", "广告放映机 - SP", "SP"],
+    sorSheetNames: ["SOR"],
+    tos: { startRank: 1, endRank: 4, label: "TOS 位置 (SP)" },
+    ros: { startRank: 5, endRank: 12, label: "ROS 位置 (SP)" },
+    sor: {
+      pageText: "第1页",
+      middleStart: 1,
+      middleEnd: 5,
+      middleLabel: "横排中部广告位 (SOR)",
+      bottomStart: 6,
+      bottomEnd: 10,
+      bottomLabel: "横排底部广告位 (SOR)"
+    }
+  };
+
+  const POSITIONS = [
+    "TOS 位置 (SP)",
+    "ROS 位置 (SP)",
+    "横排中部广告位 (SOR)",
+    "横排底部广告位 (SOR)"
+  ];
+
+  function isTPosition(positionGroup) {
+    return positionGroup === "TOS 位置 (SP)" || positionGroup === "横排中部广告位 (SOR)";
+  }
+
+  function isRPosition(positionGroup) {
+    return positionGroup === "ROS 位置 (SP)" || positionGroup === "横排底部广告位 (SOR)";
+  }
+
+  function isNewAd(campaign) {
+    return /emma/i.test(String(campaign || ""));
+  }
+
+  function isTargetAd(record) {
+    const c = String(record.campaign || "").toLowerCase();
+    if (isTPosition(record.positionGroup)) {
+      return c.includes("t-emma");
+    }
+    if (isRPosition(record.positionGroup)) {
+      if (c.includes("r-emma")) return true;
+      if (record.keyword) {
+        const kw = record.keyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        return new RegExp(kw + "-BR", "i").test(c);
+      }
+    }
+    return false;
+  }
+
+  const SOURCE_PAGE_SIZE = 200;
+  const DB_NAME = "advertising-projector-analyzer";
+  const DB_VERSION = 1;
+  const STORE_NAME = "files";
+  const FALLBACK_KEY = "advertising-projector-analyzer-files-v2";
+  const ASIN_KEY = "advertising-projector-analyzer-asins-v1";
+
+  const TABLE_COLUMNS = {
+    position: ["广告位置", "我方商品数", "竞品商品数", "总数量", "我方占比", "竞品占比"],
+    keyword: ["关键词名称", "我方商品总数", "竞品商品总数", "整体总数量", "我方综合占比", "竞品综合占比"],
+    detail: ["关键词名称", "广告位置", "我方商品数", "竞品商品数", "总数量", "我方占比", "竞品占比"],
+    newAdDetail: ["关键词名称", "广告位置", "新广告商品数", "总数量", "新广告占比"],
+    targetAdDetail: ["关键词名称", "广告位置", "目标广告商品数", "总数量", "目标广告占比"]
+  };
+
+  const state = {
+    storedFiles: [],
+    records: [],
+    filteredRecords: [],
+    asinSet: new Set(),
+    positionRows: [],
+    keywordRows: [],
+    detailRows: [],
+    currentTab: "summary",
+    activeTrace: null,
+    positionDrill: "",
+    keywordDrill: "",
+    focusSourceId: "",
+    sourcePage: 0,
+    dbUsable: true,
+    newAdDetailRows: [],
+    targetAdDetailRows: [],
+    newAdRecords: [],
+    targetAdRecords: [],
+    keywordFilter: ""
+  };
+
+  const els = {};
+
+  document.addEventListener("DOMContentLoaded", startApp);
+
+  async function startApp() {
+    bindElements();
+    initDefaults();
+    createKeywordFilter();
+    bindEvents();
+    await loadStoredLibrary();
+    const migrated = await migrateNonSpSorHistory();
+    refreshAll({ resetTrace: true });
+    if (migrated.reparsed || migrated.missingOriginal) {
+      const parts = [];
+      if (migrated.reparsed) parts.push(`已按 SP/SOR 规则重解析 ${migrated.reparsed} 个历史文件。`);
+      if (migrated.missingOriginal) parts.push(`${migrated.missingOriginal} 个历史文件缺少原始 Excel 缓存，只能先过滤非 SP/SOR 记录。`);
+      setUploadNotice(parts.join(" "), migrated.missingOriginal ? "error" : "info");
+    }
+    if (window.location.hash === "#files") showTab("files");
+    if (window.location.hash === "#sources") showTab("sources");
+    setTimeout(() => {
+      if (!window.XLSX) {
+        setNotice("XLSX 解析库未加载。请确认浏览器可访问 cdn.jsdelivr.net 后刷新页面。", "error");
+      }
+    }, 1600);
+  }
+
+  function bindElements() {
+    [
+      "summaryTabBtn", "filesTabBtn", "sourcesTabBtn", "summaryTab", "filesTab", "sourcesTab",
+      "workbookFiles", "fileList", "historyStats", "uploadNotice", "asinFile", "asinText", "asinCount", "rulesFile",
+      "spSheets", "sorSheets", "tosStart", "tosEnd", "rosStart", "rosEnd", "sorPage",
+      "middleStart", "middleEnd", "bottomStart", "bottomEnd", "analyzeBtn", "resetTraceBtn",
+      "dateStart", "dateEnd", "timeStart", "timeEnd", "applyFiltersBtn", "clearFiltersBtn", "filterStatus",
+      "trendPeriod", "trendStyle", "notice", "kpiGrid", "positionChartHeader", "positionChartTitle",
+      "positionChart", "resetPositionDrill", "keywordChartHeader", "keywordChartTitle",
+      "keywordChart", "resetKeywordDrill", "positionTable", "keywordTable",
+      "detailTable", "positionTrend", "positionTrendMeta", "keywordTrend", "keywordTrendMeta",
+      "detailTrend", "detailTrendMeta", "sourceSummaryInfo", "sourceTable", "traceLabel", "sourceSearch", "sourceFocus", "sourcePageInfo",
+      "prevPageBtn", "nextPageBtn", "openSourcesBtn", "fileDateFilter", "fileKeywordFilter", "clearFileFiltersBtn",
+      "coverageStats", "coverageTable", "missingList", "downloadRulesBtn", "downloadSourcesBtn",
+      "downloadCurrentSourcesBtn", "downloadWorkbookBtn", "downloadPositionCsv",
+      "downloadKeywordCsv", "downloadDetailCsv", "clearSearchBtn"
+    ].forEach((id) => {
+      els[id] = document.getElementById(id);
+    });
+  }
+
+  function initDefaults() {
+    els.asinText.value = localStorage.getItem(ASIN_KEY) || DEFAULT_ASINS;
+    els.spSheets.value = DEFAULT_RULES.spSheetNames.join(", ");
+    els.sorSheets.value = DEFAULT_RULES.sorSheetNames.join(", ");
+    els.tosStart.value = DEFAULT_RULES.tos.startRank;
+    els.tosEnd.value = DEFAULT_RULES.tos.endRank;
+    els.rosStart.value = DEFAULT_RULES.ros.startRank;
+    els.rosEnd.value = DEFAULT_RULES.ros.endRank;
+    els.sorPage.value = DEFAULT_RULES.sor.pageText;
+    els.middleStart.value = DEFAULT_RULES.sor.middleStart;
+    els.middleEnd.value = DEFAULT_RULES.sor.middleEnd;
+    els.bottomStart.value = DEFAULT_RULES.sor.bottomStart;
+    els.bottomEnd.value = DEFAULT_RULES.sor.bottomEnd;
+    updateAsinCount();
+  }
+
+  function createKeywordFilter() {
+    if (!els.trendStyle) return;
+    const parent = els.trendStyle.parentElement;
+    if (!parent) return;
+    // Avoid duplicates
+    if (document.getElementById("trendKeywordFilter")) return;
+
+    const wrapper = document.createElement("label");
+    wrapper.className = "trendControl";
+    wrapper.innerHTML = '<span>筛选词</span>';
+    const select = document.createElement("select");
+    select.id = "trendKeywordFilter";
+    select.innerHTML = '<option value="">全部词</option>';
+    wrapper.appendChild(select);
+    // Insert after trendStyle
+    const trendStyleWrapper = els.trendStyle.closest(".trendControl");
+    if (trendStyleWrapper) {
+      trendStyleWrapper.after(wrapper);
+    } else {
+      parent.appendChild(wrapper);
+    }
+    els.trendKeywordFilter = select;
+  }
+
+  function addTrendStyleOption() {
+    if (!els.trendStyle) return;
+    const exists = Array.from(els.trendStyle.options).some(
+      (option) => option.value === "newAdAnalysis"
+    );
+    if (!exists) {
+      const option = document.createElement("option");
+      option.value = "newAdAnalysis";
+      option.textContent = "新广告占比分析";
+      els.trendStyle.appendChild(option);
+    }
+  }
+
+  function createAnalysisSections() {
+    if (!els.detailTable) return;
+    const detailPanel = els.detailTable.closest("section.panel");
+    if (!detailPanel) return;
+
+    // --- Table 4: 分词分位置新广告占比 ---
+    const table4Panel = document.createElement("section");
+    table4Panel.className = "panel";
+    table4Panel.id = "newAdTablePanel";
+    table4Panel.style.display = "none";
+    table4Panel.innerHTML =
+      '<div class="panelHeader">' +
+      '<h2>表格 4：分词分位置新广告占比</h2>' +
+      '<div class="tableTools">' +
+      '<button class="button secondary small" id="downloadNewAdDetailCsv" type="button" disabled>下载 CSV</button>' +
+      "</div>" +
+      "</div>" +
+      '<div class="panelBody">' +
+      '<div class="tableWrap" id="newAdDetailTable"></div>' +
+      '<div class="trendPanel">' +
+      '<div class="trendHeader">' +
+      "<h3>分词分位置新广告占比趋势</h3>" +
+      '<span class="trendMeta" id="newAdTrendMeta">按天 / 我品占比折线</span>' +
+      "</div>" +
+      '<div class="trendChart" id="newAdTrend"></div>' +
+      "</div>" +
+      "</div>";
+
+    // --- Table 5: 目标广告占比 ---
+    const table5Panel = document.createElement("section");
+    table5Panel.className = "panel";
+    table5Panel.id = "targetAdTablePanel";
+    table5Panel.style.display = "none";
+    table5Panel.innerHTML =
+      '<div class="panelHeader">' +
+      "<h2>表格 5：目标广告占比</h2>" +
+      '<div class="tableTools">' +
+      '<button class="button secondary small" id="downloadTargetAdDetailCsv" type="button" disabled>下载 CSV</button>' +
+      "</div>" +
+      "</div>" +
+      '<div class="panelBody">' +
+      '<div class="tableWrap" id="targetAdDetailTable"></div>' +
+      '<div class="trendPanel">' +
+      '<div class="trendHeader">' +
+      "<h3>目标广告占比趋势</h3>" +
+      '<span class="trendMeta" id="targetAdTrendMeta">按天 / 我品占比折线</span>' +
+      "</div>" +
+      '<div class="trendChart" id="targetAdTrend"></div>' +
+      "</div>" +
+      "</div>";
+
+    detailPanel.after(table5Panel);
+    table5Panel.before(table4Panel);
+
+    // Bind new elements
+    [
+      "newAdDetailTable", "newAdTrend", "newAdTrendMeta", "newAdTablePanel",
+      "targetAdDetailTable", "targetAdTrend", "targetAdTrendMeta", "targetAdTablePanel",
+      "downloadNewAdDetailCsv", "downloadTargetAdDetailCsv"
+    ].forEach((id) => {
+      els[id] = document.getElementById(id);
+    });
+  }
+
+  function bindEvents() {
+    document.querySelectorAll("[data-tab-target]").forEach((button) => {
+      button.addEventListener("click", () => showTab(button.dataset.tabTarget || "summary"));
+    });
+    els.workbookFiles.addEventListener("change", handleWorkbookUpload);
+    els.asinText.addEventListener("input", () => {
+      saveAsins();
+      updateAsinCount();
+    });
+    els.asinFile.addEventListener("change", handleAsinFile);
+    els.rulesFile.addEventListener("change", handleRulesFile);
+    els.analyzeBtn.addEventListener("click", handleRefreshByRules);
+    els.applyFiltersBtn.addEventListener("click", () => refreshAll({ resetTrace: true }));
+    els.clearFiltersBtn.addEventListener("click", clearFilters);
+    els.trendPeriod.addEventListener("change", () => {
+      renderTrendCharts();
+    });
+    els.trendStyle.addEventListener("change", () => {
+      renderTrendCharts();
+    });
+    if (els.trendKeywordFilter) {
+      els.trendKeywordFilter.addEventListener("change", () => {
+        state.keywordFilter = els.trendKeywordFilter.value;
+        buildSummaries();
+        renderSummaryTables();
+        renderTrendCharts();
+      });
+    }
+    els.resetPositionDrill.addEventListener("click", () => {
+      state.positionDrill = "";
+      renderCharts();
+    });
+    els.resetKeywordDrill.addEventListener("click", () => {
+      state.keywordDrill = "";
+      renderCharts();
+    });
+    els.resetTraceBtn.addEventListener("click", () => {
+      state.activeTrace = null;
+      state.focusSourceId = "";
+      state.sourcePage = 0;
+      showTab("sources");
+      renderSources();
+    });
+    els.sourceSearch.addEventListener("input", () => {
+      state.sourcePage = 0;
+      renderSources();
+    });
+    els.clearSearchBtn.addEventListener("click", () => {
+      els.sourceSearch.value = "";
+      state.sourcePage = 0;
+      renderSources();
+    });
+    els.prevPageBtn.addEventListener("click", () => {
+      state.sourcePage = Math.max(0, state.sourcePage - 1);
+      renderSources();
+    });
+    els.nextPageBtn.addEventListener("click", () => {
+      state.sourcePage += 1;
+      renderSources();
+    });
+    els.openSourcesBtn.addEventListener("click", () => {
+      state.activeTrace = null;
+      state.focusSourceId = "";
+      state.sourcePage = 0;
+      showTab("sources");
+      renderSources();
+    });
+    els.fileDateFilter.addEventListener("change", renderHistory);
+    els.fileKeywordFilter.addEventListener("input", renderHistory);
+    els.clearFileFiltersBtn.addEventListener("click", () => {
+      els.fileDateFilter.value = "";
+      els.fileKeywordFilter.value = "";
+      renderHistory();
+    });
+    els.downloadRulesBtn.addEventListener("click", downloadRules);
+    els.downloadSourcesBtn.addEventListener("click", () => {
+      downloadCsv(sourceRowsForExport(state.filteredRecords), "来源明细.csv");
+    });
+    els.downloadCurrentSourcesBtn.addEventListener("click", () => {
+      downloadCsv(sourceRowsForExport(getFilteredSources()), "当前来源明细.csv");
+    });
+    els.downloadWorkbookBtn.addEventListener("click", downloadWorkbook);
+    els.downloadPositionCsv.addEventListener("click", () => {
+      downloadCsv(stripRows(state.positionRows, TABLE_COLUMNS.position), "按位置汇总表.csv");
+    });
+    els.downloadKeywordCsv.addEventListener("click", () => {
+      downloadCsv(stripRows(state.keywordRows, TABLE_COLUMNS.keyword), "按关键词汇总表.csv");
+    });
+    els.downloadDetailCsv.addEventListener("click", () => {
+      downloadCsv(stripRows(state.detailRows, TABLE_COLUMNS.detail), "分关键词分位置明细表.csv");
+    });
+    document.addEventListener("click", handleDocumentClick);
+  }
+
+  async function handleWorkbookUpload() {
+    const files = Array.from(els.workbookFiles.files || []);
+    els.workbookFiles.value = "";
+    if (!files.length) return;
+
+    try {
+      ensureXlsx();
+      setBusy(true);
+      clearNotice();
+      clearUploadNotice();
+      state.asinSet = new Set(parseAsins(els.asinText.value));
+      if (!state.asinSet.size) {
+        throw new Error("请先上传或填写我品 ASIN。");
+      }
+
+      const rules = getRulesFromForm();
+      const existingByName = new Map(state.storedFiles.map((file) => [normalizeKey(file.fileName), file]));
+      const existingByLogicalName = new Map(state.storedFiles.map((file) => [normalizeKey(file.logicalName || ""), file]));
+      const selectedNames = new Set();
+      const selectedLogicalNames = new Set();
+      const acceptedFiles = [];
+      const skipped = [];
+
+      for (const file of files) {
+        const meta = extractFileMeta(file.name);
+        const logicalName = makeLogicalName(meta, file.name);
+        const fileKey = normalizeKey(file.name);
+        const logicalKey = normalizeKey(logicalName);
+        const existingByFileName = existingByName.get(fileKey);
+        const existingByLogical = logicalKey ? existingByLogicalName.get(logicalKey) : null;
+        const replaceIds = [existingByFileName, existingByLogical]
+          .filter((existing) => existing && storedFileNeedsSpSorReparse(existing))
+          .map((existing) => existing.id);
+        if (existingByFileName && !replaceIds.includes(existingByFileName.id)) {
+          skipped.push(`${file.name}（文件名重复）`);
+          continue;
+        }
+        if (logicalKey && existingByLogical && !replaceIds.includes(existingByLogical.id)) {
+          skipped.push(`${file.name}（关键词+日期重复）`);
+          continue;
+        }
+        if (logicalKey && selectedLogicalNames.has(logicalKey)) {
+          skipped.push(`${file.name}（本次上传内关键词+日期重复）`);
+          continue;
+        }
+        selectedNames.add(fileKey);
+        if (logicalKey) selectedLogicalNames.add(logicalKey);
+        acceptedFiles.push({ file, meta, logicalName, replaceIds: Array.from(new Set(replaceIds)) });
+      }
+
+      let savedCount = 0;
+      let recordCount = 0;
+      for (const item of acceptedFiles) {
+        for (const replaceId of item.replaceIds || []) {
+          await removeStoredFile(replaceId);
+        }
+        const buffer = await item.file.arrayBuffer();
+        const storedFile = {
+          id: makeFileId(item.file.name),
+          fileName: item.file.name,
+          logicalName: item.logicalName,
+          keyword: item.meta.keyword,
+          date: item.meta.date,
+          size: item.file.size,
+          type: item.file.type || "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          uploadedAt: new Date().toISOString(),
+          records: []
+        };
+        storedFile.records = parseWorkbookBuffer(buffer, storedFile, rules);
+        storedFile.recordCount = storedFile.records.length;
+        await saveStoredFile(storedFile, buffer);
+        savedCount += 1;
+        recordCount += storedFile.records.length;
+      }
+
+      await loadStoredLibrary();
+      refreshAll({ resetTrace: true });
+
+      const parts = [];
+      if (savedCount) parts.push(`新增保存 ${savedCount} 个文件，解析 ${recordCount} 条来源记录。`);
+      if (skipped.length) parts.push(`已跳过重复：${skipped.join("；")}`);
+      setUploadNotice(parts.join(" ") || "没有新增文件。", skipped.length ? "error" : "info");
+    } catch (error) {
+      setUploadNotice(error.message || String(error), "error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleRefreshByRules() {
+    try {
+      ensureXlsx();
+      setBusy(true);
+      clearNotice();
+      state.asinSet = new Set(parseAsins(els.asinText.value));
+      if (!state.asinSet.size) {
+        throw new Error("请先上传或填写我品 ASIN。");
+      }
+      if (!state.storedFiles.length) {
+        throw new Error("请先上传广告放映机 Excel。");
+      }
+
+      const rules = getRulesFromForm();
+      let reparsed = 0;
+      let missingOriginal = 0;
+      for (const file of state.storedFiles) {
+        const full = await getStoredFile(file.id);
+        if (!full || !full.buffer) {
+          missingOriginal += 1;
+          continue;
+        }
+        const next = { ...file };
+        next.records = parseWorkbookBuffer(full.buffer, next, rules);
+        next.recordCount = next.records.length;
+        await saveStoredFile(next, full.buffer);
+        reparsed += 1;
+      }
+
+      await loadStoredLibrary();
+      refreshAll({ resetTrace: true });
+      const note = missingOriginal ? `；${missingOriginal} 个历史文件缺少原始文件缓存，仅沿用已解析记录` : "";
+      setNotice(`已按当前规则刷新 ${reparsed} 个历史文件${note}。`);
+    } catch (error) {
+      setNotice(error.message || String(error), "error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleAsinFile() {
+    const file = els.asinFile.files && els.asinFile.files[0];
+    if (!file) return;
+    try {
+      let asins = [];
+      if (isExcelFile(file.name)) {
+        ensureXlsx();
+        const buffer = await file.arrayBuffer();
+        const wb = XLSX.read(buffer, { type: "array", cellDates: false });
+        const texts = [];
+        wb.SheetNames.forEach((sheetName) => {
+          const matrix = worksheetToMatrix(wb.Sheets[sheetName]);
+          matrix.rows.forEach((row) => row.forEach((value) => texts.push(asText(value))));
+        });
+        asins = parseAsins(texts.join("\n"));
+      } else {
+        asins = parseAsins(await file.text());
+      }
+      els.asinText.value = asins.join("\n");
+      saveAsins();
+      updateAsinCount();
+      refreshAll({ resetTrace: false });
+      setNotice(`已导入 ${asins.length} 个我品 ASIN。`);
+    } catch (error) {
+      setNotice(error.message || String(error), "error");
+    } finally {
+      els.asinFile.value = "";
+    }
+  }
+
+  async function handleRulesFile() {
+    const file = els.rulesFile.files && els.rulesFile.files[0];
+    if (!file) return;
+    try {
+      const rules = JSON.parse(await file.text());
+      applyRulesToForm(mergeRules(rules));
+      setNotice("位置规则已导入。点击“刷新汇总”后会按新规则重算历史文件。");
+    } catch (error) {
+      setNotice("规则 JSON 无法读取，请检查文件格式。", "error");
+    } finally {
+      els.rulesFile.value = "";
+    }
+  }
+
+  function parseWorkbookBuffer(buffer, fileMeta, rules) {
+    const workbook = XLSX.read(buffer, { type: "array", cellDates: false });
+    const records = [];
+    const spSheet = findSheetName(workbook.SheetNames, rules.spSheetNames);
+    if (spSheet) {
+      records.push(...parseSpSheet(workbook.Sheets[spSheet], spSheet, fileMeta, rules));
+    }
+    const sorSheet = findSheetName(workbook.SheetNames, rules.sorSheetNames);
+    if (sorSheet) {
+      records.push(...parseSorSheet(workbook.Sheets[sorSheet], sorSheet, fileMeta, rules));
+    }
+    return records;
+  }
+
+  function parseSpSheet(sheet, sheetName, fileMeta, rules) {
+    const matrix = worksheetToMatrix(sheet);
+    const rows = matrix.rows;
+    if (!rows.length) return [];
+    const header = rows[0] || [];
+    const records = [];
+
+    for (let r = 1; r < rows.length; r += 1) {
+      const row = rows[r] || [];
+      const rawPosition = asText(row[0]);
+      const rank = parseSpRank(rawPosition);
+      const positionGroup = rankToSpGroup(rank, rules);
+      if (!positionGroup) continue;
+
+      for (let c = 1; c < row.length; c += 1) {
+        const time = normalizeTime(asText(header[c]));
+        if (!isTimeHeader(time)) continue;
+        const asins = parseAsins(asText(row[c]));
+        if (!asins.length) continue;
+
+        const nextHeader = asText(header[c + 1]);
+        const campaign = /广告活动/.test(nextHeader) ? asText(row[c + 1]) : "";
+        asins.forEach((asin, asinIndex) => {
+          records.push(makeRecord({
+            fileMeta,
+            sheetName,
+            adType: "SP",
+            positionGroup,
+            rawPosition,
+            positionIndex: rank,
+            page: "P1",
+            time,
+            asin,
+            sourceValue: asText(row[c]),
+            campaign,
+            rowIndex: matrix.startRow + r,
+            colIndex: matrix.startCol + c,
+            asinIndex
+          }));
+        });
+      }
+    }
+    return records;
+  }
+
+  function parseSorSheet(sheet, sheetName, fileMeta, rules) {
+    const matrix = worksheetToMatrix(sheet);
+    const rows = matrix.rows;
+    if (!rows.length) return [];
+    const header = rows[0] || [];
+    const records = [];
+    let pageRowIndex = 0;
+
+    for (let r = 1; r < rows.length; r += 1) {
+      const row = rows[r] || [];
+      const page = asText(row[0]);
+      if (!pageMatches(page, rules.sor.pageText)) continue;
+      pageRowIndex += 1;
+      const positionGroup = sorRowToGroup(pageRowIndex, rules);
+      if (!positionGroup) continue;
+
+      for (let c = 1; c < row.length; c += 1) {
+        const time = normalizeTime(asText(header[c]));
+        if (!isTimeHeader(time)) continue;
+        const asins = parseAsins(asText(row[c]));
+        if (!asins.length) continue;
+
+        asins.forEach((asin, asinIndex) => {
+          records.push(makeRecord({
+            fileMeta,
+            sheetName,
+            adType: "SOR",
+            positionGroup,
+            rawPosition: `${page} 第${pageRowIndex}行`,
+            positionIndex: pageRowIndex,
+            page,
+            time,
+            asin,
+            sourceValue: asText(row[c]),
+            campaign: "",
+            rowIndex: matrix.startRow + r,
+            colIndex: matrix.startCol + c,
+            asinIndex
+          }));
+        });
+      }
+    }
+    return records;
+  }
+
+  function makeRecord(input) {
+    const sourceCell = cellAddress(input.rowIndex, input.colIndex);
+    const id = [
+      input.fileMeta.id,
+      input.sheetName,
+      sourceCell,
+      input.asin,
+      input.asinIndex
+    ].join("::");
+    return {
+      id,
+      sourceFileId: input.fileMeta.id,
+      fileName: input.fileMeta.fileName,
+      keyword: input.fileMeta.keyword,
+      date: input.fileMeta.date,
+      adType: input.adType,
+      sheetName: input.sheetName,
+      positionGroup: input.positionGroup,
+      rawPosition: input.rawPosition,
+      positionIndex: input.positionIndex,
+      page: input.page,
+      time: input.time,
+      asin: input.asin,
+      ownerType: "竞品",
+      sourceCell,
+      rowNumber: input.rowIndex + 1,
+      colNumber: input.colIndex + 1,
+      campaign: input.campaign,
+      sourceValue: input.sourceValue
+    };
+  }
+
+  function refreshAll(options = {}) {
+    state.asinSet = new Set(parseAsins(els.asinText.value));
+    hydrateRecords();
+    applyOwnership();
+    applyRecordFilters();
+    buildSummaries();
+    if (options.resetTrace) {
+      state.activeTrace = null;
+      state.positionDrill = "";
+      state.keywordDrill = "";
+      state.focusSourceId = "";
+      state.sourcePage = 0;
+    }
+    renderAll();
+  }
+
+  function hydrateRecords() {
+    state.records = state.storedFiles.flatMap((file) => {
+      return (file.records || []).map((record) => ({
+        ...record,
+        sourceFileId: record.sourceFileId || file.id,
+        fileName: record.fileName || file.fileName,
+        keyword: record.keyword || file.keyword,
+        date: record.date || file.date
+      }));
+    });
+  }
+
+  function applyOwnership() {
+    state.records.forEach((record) => {
+      record.ownerType = state.asinSet.has(record.asin) ? "我方" : "竞品";
+    });
+  }
+
+  function applyRecordFilters() {
+    const filters = getFilters();
+    state.filteredRecords = state.records.filter((record) => recordMatchesFilters(record, filters));
+  }
+
+  function buildSummaries() {
+    const activeRecords = state.filteredRecords;
+    const filterKeyword = state.keywordFilter || "";
+
+    state.positionRows = POSITIONS.map((position) => {
+      return makePositionRow(position, summarizeRecords(activeRecords.filter((record) => record.positionGroup === position)));
+    });
+    state.positionRows.push(makePositionTotalRow(summarizeRecords(activeRecords)));
+
+    const keywordRows = activeKeywords().map((keyword) => {
+      const rows = activeRecords.filter((record) => record.keyword === keyword);
+      return makeKeywordRow(keyword, summarizeRecords(rows));
+    });
+    keywordRows.sort((a, b) => a["关键词名称"].localeCompare(b["关键词名称"], "zh-CN"));
+    keywordRows.push(makeKeywordTotalRow(summarizeRecords(activeRecords)));
+    state.keywordRows = keywordRows;
+
+    // Apply keyword filter for Tables 3/4/5
+    const keywords = filterKeyword
+      ? [filterKeyword]
+      : activeKeywords().sort((a, b) => a.localeCompare(b, "zh-CN"));
+
+    state.detailRows = keywords
+      .flatMap((keyword) => POSITIONS.map((position) => {
+        const rows = activeRecords.filter((record) => record.keyword === keyword && record.positionGroup === position);
+        return makeDetailRow(keyword, position, summarizeRecords(rows));
+      }));
+
+    // Build new ad records and summary
+    state.newAdRecords = activeRecords.filter((record) => isNewAd(record.campaign));
+    state.newAdDetailRows = keywords
+      .flatMap((keyword) => POSITIONS.map((position) => {
+        const totalRows = activeRecords.filter((record) => record.keyword === keyword && record.positionGroup === position);
+        const newAdCount = totalRows.filter((record) => isNewAd(record.campaign)).length;
+        return makeNewAdDetailRow(keyword, position, newAdCount, totalRows.length);
+      }));
+
+    // Build target ad records and summary
+    state.targetAdRecords = activeRecords.filter((record) => isTargetAd(record));
+    state.targetAdDetailRows = keywords
+      .flatMap((keyword) => POSITIONS.map((position) => {
+        const totalRows = activeRecords.filter((record) => record.keyword === keyword && record.positionGroup === position);
+        const targetCount = totalRows.filter((record) => isTargetAd(record)).length;
+        return makeTargetAdDetailRow(keyword, position, targetCount, totalRows.length);
+      }));
+  }
+
+  function summarizeRecords(records) {
+    let own = 0;
+    let comp = 0;
+    records.forEach((record) => {
+      if (record.ownerType === "我方") own += 1;
+      else comp += 1;
+    });
+    return { own, comp, total: own + comp };
+  }
+
+  function makePositionRow(position, counts) {
+    return {
+      "广告位置": position,
+      "我方商品数": counts.own,
+      "竞品商品数": counts.comp,
+      "总数量": counts.total,
+      "我方占比": percent(counts.own, counts.total),
+      "竞品占比": percent(counts.comp, counts.total),
+      __traceType: "position",
+      __position: position
+    };
+  }
+
+  function makePositionTotalRow(counts) {
+    return {
+      "广告位置": "合计",
+      "我方商品数": counts.own,
+      "竞品商品数": counts.comp,
+      "总数量": counts.total,
+      "我方占比": percent(counts.own, counts.total),
+      "竞品占比": percent(counts.comp, counts.total),
+      __traceType: "all",
+      __total: true
+    };
+  }
+
+  function makeKeywordRow(keyword, counts) {
+    return {
+      "关键词名称": keyword,
+      "我方商品总数": counts.own,
+      "竞品商品总数": counts.comp,
+      "整体总数量": counts.total,
+      "我方综合占比": percent(counts.own, counts.total),
+      "竞品综合占比": percent(counts.comp, counts.total),
+      __traceType: "keyword",
+      __keyword: keyword
+    };
+  }
+
+  function makeKeywordTotalRow(counts) {
+    return {
+      "关键词名称": "全部关键词合计",
+      "我方商品总数": counts.own,
+      "竞品商品总数": counts.comp,
+      "整体总数量": counts.total,
+      "我方综合占比": percent(counts.own, counts.total),
+      "竞品综合占比": percent(counts.comp, counts.total),
+      __traceType: "all",
+      __total: true
+    };
+  }
+
+  function makeDetailRow(keyword, position, counts) {
+    return {
+      "关键词名称": keyword,
+      "广告位置": position,
+      "我方商品数": counts.own,
+      "竞品商品数": counts.comp,
+      "总数量": counts.total,
+      "我方占比": percent(counts.own, counts.total),
+      "竞品占比": percent(counts.comp, counts.total),
+      __traceType: "detail",
+      __keyword: keyword,
+      __position: position
+    };
+  }
+
+  function makeNewAdDetailRow(keyword, position, newAdCount, totalCount) {
+    return {
+      "关键词名称": keyword,
+      "广告位置": position,
+      "新广告商品数": newAdCount,
+      "总数量": totalCount,
+      "新广告占比": percent(newAdCount, totalCount),
+      __traceType: "newAdDetail",
+      __keyword: keyword,
+      __position: position
+    };
+  }
+
+  function makeTargetAdDetailRow(keyword, position, targetCount, totalCount) {
+    return {
+      "关键词名称": keyword,
+      "广告位置": position,
+      "目标广告商品数": targetCount,
+      "总数量": totalCount,
+      "目标广告占比": percent(targetCount, totalCount),
+      __traceType: "targetAdDetail",
+      __keyword: keyword,
+      __position: position
+    };
+  }
+
+  function activeKeywords() {
+    const filters = getFilters();
+    const fromFiles = state.storedFiles
+      .filter((file) => fileMatchesDateFilters(file, filters))
+      .map((file) => file.keyword)
+      .filter(Boolean);
+    const fromRecords = state.filteredRecords.map((record) => record.keyword).filter(Boolean);
+    return Array.from(new Set([...fromFiles, ...fromRecords]));
+  }
+
+  function renderAll() {
+    renderHistory();
+    renderCoverage();
+    renderFilterStatus();
+    renderKpis();
+    renderCharts();
+    renderSummaryTables();
+    renderTrendCharts();
+    renderSources();
+    setDownloadsEnabled(state.storedFiles.length > 0);
+    populateKeywordFilter();
+  }
+
+  function populateKeywordFilter() {
+    if (!els.trendKeywordFilter) return;
+    const currentValue = els.trendKeywordFilter.value;
+    const keywords = activeKeywords().sort((a, b) => a.localeCompare(b, "zh-CN"));
+    const options = ['<option value="">全部词</option>'];
+    keywords.forEach((kw) => {
+      const sel = kw === currentValue ? " selected" : "";
+      options.push(`<option value="${escapeAttr(kw)}"${sel}>${escapeHtml(kw)}</option>`);
+    });
+    els.trendKeywordFilter.innerHTML = options.join("");
+  }
+
+  function showTab(tabName) {
+    state.currentTab = tabName;
+    const tabs = [
+      ["summary", els.summaryTab, els.summaryTabBtn],
+      ["files", els.filesTab, els.filesTabBtn],
+      ["sources", els.sourcesTab, els.sourcesTabBtn]
+    ];
+    tabs.forEach(([name, panel, button]) => {
+      const active = name === tabName;
+      panel.className = `tabPanel${active ? " active" : ""}`;
+      button.className = `tabButton${active ? " active" : ""}`;
+    });
+    if (tabName === "files") {
+      renderHistory();
+      renderCoverage();
+    }
+    if (tabName === "sources") {
+      renderSources();
+    }
+    window.location.hash = tabName === "summary" ? "" : tabName;
+  }
+
+  function renderHistory() {
+    const totalRecords = state.storedFiles.reduce((sum, file) => sum + (file.recordCount || 0), 0);
+    els.historyStats.textContent = `已保存 ${state.storedFiles.length} 个历史文件，累计 ${totalRecords} 条解析来源`;
+    const fileDate = els.fileDateFilter.value || "";
+    const keyword = els.fileKeywordFilter.value.trim().toLowerCase();
+    const visibleFiles = state.storedFiles.filter((file) => {
+      if (fileDate && file.date !== fileDate) return false;
+      if (keyword && !String(file.keyword || "").toLowerCase().includes(keyword)) return false;
+      return true;
+    });
+    if (!visibleFiles.length) {
+      els.fileList.innerHTML = `<div class="empty">暂无历史文件</div>`;
+      return;
+    }
+    const files = [...visibleFiles].sort((a, b) => (b.uploadedAt || "").localeCompare(a.uploadedAt || ""));
+    els.fileList.innerHTML = files.map((file) => {
+      return `
+        <div class="filePill">
+          <span>
+            ${escapeHtml(file.fileName)}
+            <em class="fileMeta">${escapeHtml(file.keyword || "-")} / ${escapeHtml(file.date || "无日期")} / ${file.recordCount || 0} 条</em>
+          </span>
+          <span class="fileActions">
+            <button class="button secondary small" type="button" data-download-file="${escapeAttr(file.id)}">下载</button>
+            <button class="button warn small" type="button" data-delete-file="${escapeAttr(file.id)}">删除</button>
+          </span>
+        </div>`;
+    }).join("");
+  }
+
+  function renderCoverage() {
+    if (!state.storedFiles.length) {
+      els.coverageStats.innerHTML = "";
+      els.coverageTable.innerHTML = `<div class="empty">暂无历史文件</div>`;
+      els.missingList.innerHTML = "";
+      return;
+    }
+    const dates = Array.from(new Set(state.storedFiles.map((file) => file.date).filter(Boolean))).sort();
+    const keywords = Array.from(new Set(state.storedFiles.map((file) => file.keyword).filter(Boolean))).sort((a, b) => a.localeCompare(b, "zh-CN"));
+    const existing = new Set(state.storedFiles.map((file) => `${file.date}||${file.keyword}`));
+    const missing = [];
+    dates.forEach((date) => {
+      keywords.forEach((keyword) => {
+        if (!existing.has(`${date}||${keyword}`)) {
+          missing.push({ date, keyword });
+        }
+      });
+    });
+    const missingDateCount = new Set(missing.map((item) => `${item.keyword} 缺 ${item.date}`)).size;
+    const missingKeywordCount = new Set(missing.map((item) => `${item.date} 缺 ${item.keyword}`)).size;
+    els.coverageStats.innerHTML = [
+      ["日期数", dates.length],
+      ["关键词数", keywords.length],
+      ["现有表格", state.storedFiles.length],
+      ["缺失组合", missing.length]
+    ].map(([label, value]) => `<div class="coverageCard"><span>${label}</span><strong>${value}</strong></div>`).join("");
+
+    const head = `<th>日期</th>${keywords.map((keyword) => `<th>${escapeHtml(keyword)}</th>`).join("")}`;
+    const body = dates.map((date) => {
+      const cells = keywords.map((keyword) => {
+        const hasFile = existing.has(`${date}||${keyword}`);
+        return `<td class="${hasFile ? "present" : "missing"}">${hasFile ? "有" : "缺失"}</td>`;
+      }).join("");
+      return `<tr><td>${escapeHtml(date)}</td>${cells}</tr>`;
+    }).join("");
+    els.coverageTable.innerHTML = `<table class="coverageTable"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
+
+    if (!missing.length) {
+      els.missingList.innerHTML = `<div class="empty">没有发现缺失日期或缺失关键词</div>`;
+      return;
+    }
+    const sample = missing.slice(0, 120).map((item) => {
+      return `<div class="missingItem">日期 ${escapeHtml(item.date)} 缺失关键词：${escapeHtml(item.keyword)}</div>`;
+    }).join("");
+    const more = missing.length > 120 ? `<div class="missingItem">还有 ${missing.length - 120} 个缺失组合未展开显示</div>` : "";
+    els.missingList.innerHTML = sample + more;
+    els.coverageStats.insertAdjacentHTML("beforeend", [
+      ["缺失日期提示", missingDateCount],
+      ["缺失关键词提示", missingKeywordCount]
+    ].map(([label, value]) => `<div class="coverageCard"><span>${label}</span><strong>${value}</strong></div>`).join(""));
+  }
+
+  function renderFilterStatus() {
+    const filters = getFilters();
+    const dateText = filters.dateStart || filters.dateEnd
+      ? `${filters.dateStart || "最早"} 至 ${filters.dateEnd || "最晚"}`
+      : "全部日期";
+    const timeText = filters.timeStart || filters.timeEnd
+      ? `${filters.timeStart || "00:00"} 至 ${filters.timeEnd || "23:59"}`
+      : "全部时间";
+    els.filterStatus.textContent = `当前筛选：${dateText} / ${timeText}`;
+    syncDateBounds();
+  }
+
+  function renderKpis() {
+    const own = state.filteredRecords.filter((record) => record.ownerType === "我方").length;
+    const total = state.filteredRecords.length;
+    const comp = total - own;
+    const activeFileCount = new Set(state.filteredRecords.map((record) => record.sourceFileId)).size;
+    els.kpiGrid.innerHTML = [
+      ["历史文件", state.storedFiles.length, `${activeFileCount} 个文件进入当前筛选`],
+      ["当前展示次数", total, "SP + SOR"],
+      ["我方占比", percent(own, total), `${own} 次展示`],
+      ["竞品占比", percent(comp, total), `${comp} 次展示`]
+    ].map(([label, value, sub]) => (
+      `<div class="kpi"><span>${label}</span><strong>${value}</strong><small>${escapeHtml(sub)}</small></div>`
+    )).join("");
+  }
+
+  function renderCharts() {
+    if (!state.filteredRecords.length) {
+      setChartHeader("position", "按位置占比", false);
+      setChartHeader("keyword", "按关键词占比", false);
+      els.positionChart.innerHTML = `<div class="empty">暂无数据</div>`;
+      els.keywordChart.innerHTML = `<div class="empty">暂无数据</div>`;
+      return;
+    }
+
+    if (state.positionDrill) {
+      setChartHeader("position", `位置下钻：${state.positionDrill} → 关键词`, true);
+      const rows = groupedChartRows(
+        state.filteredRecords.filter((record) => record.positionGroup === state.positionDrill),
+        "keyword",
+        activeKeywords()
+      );
+      els.positionChart.innerHTML = rows.length
+        ? rows.map((row) => barRow(row.label, row.own, row.comp, row.total, {
+          traceType: "detail",
+          keyword: row.label,
+          position: state.positionDrill
+        })).join("")
+        : `<div class="empty">暂无数据</div>`;
+    } else {
+      setChartHeader("position", "按位置占比", false);
+      els.positionChart.innerHTML = state.positionRows
+        .filter((row) => !row.__total)
+        .map((row) => barRow(row["广告位置"], row["我方商品数"], row["竞品商品数"], row["总数量"], {
+          drillType: "position",
+          value: row["广告位置"]
+        }))
+        .join("");
+    }
+
+    if (state.keywordDrill) {
+      setChartHeader("keyword", `关键词下钻：${state.keywordDrill} → 位置`, true);
+      const rows = groupedChartRows(
+        state.filteredRecords.filter((record) => record.keyword === state.keywordDrill),
+        "positionGroup",
+        POSITIONS
+      );
+      els.keywordChart.innerHTML = rows.length
+        ? rows.map((row) => barRow(row.label, row.own, row.comp, row.total, {
+          traceType: "detail",
+          keyword: state.keywordDrill,
+          position: row.label
+        })).join("")
+        : `<div class="empty">暂无数据</div>`;
+    } else {
+      setChartHeader("keyword", "按关键词占比", false);
+      els.keywordChart.innerHTML = state.keywordRows
+        .filter((row) => !row.__total)
+        .map((row) => barRow(row["关键词名称"], row["我方商品总数"], row["竞品商品总数"], row["整体总数量"], {
+          drillType: "keyword",
+          value: row["关键词名称"]
+        }))
+        .join("");
+    }
+  }
+
+  function setChartHeader(type, title, drilled) {
+    const header = type === "position" ? els.positionChartHeader : els.keywordChartHeader;
+    const titleEl = type === "position" ? els.positionChartTitle : els.keywordChartTitle;
+    titleEl.textContent = title;
+    header.className = `chartHeader${drilled ? " drilled" : ""}`;
+  }
+
+  function groupedChartRows(records, field, labels) {
+    return labels.map((label) => {
+      const counts = summarizeRecords(records.filter((record) => record[field] === label));
+      return { label, ...counts };
+    }).filter((row) => row.total > 0);
+  }
+
+  function barRow(label, own, comp, total, options = {}) {
+    const ownWidth = total ? (own / total) * 100 : 0;
+    const compWidth = total ? (comp / total) * 100 : 0;
+    const attrs = chartRowAttrs(options);
+    const classes = `barRow${attrs ? " drillable" : ""}`;
+    return `
+      <div class="${classes}" ${attrs}>
+        <div class="barMeta">
+          <span>${escapeHtml(label)}</span>
+          <span>${percent(own, total)} / ${total}</span>
+        </div>
+        <div class="stackBar" aria-label="${escapeAttr(label)}">
+          <span class="ownSeg" style="width:${ownWidth}%"></span>
+          <span class="compSeg" style="width:${compWidth}%"></span>
+        </div>
+      </div>`;
+  }
+
+  function chartRowAttrs(options) {
+    if (options.drillType) {
+      return `title="点击下钻" data-chart-drill="${escapeAttr(options.drillType)}" data-chart-value="${escapeAttr(options.value || "")}"`;
+    }
+    if (options.traceType) {
+      return [
+        `title="点击查看来源明细"`,
+        `data-trace-type="${escapeAttr(options.traceType)}"`,
+        options.keyword ? `data-keyword="${escapeAttr(options.keyword)}"` : "",
+        options.position ? `data-position="${escapeAttr(options.position)}"` : ""
+      ].filter(Boolean).join(" ");
+    }
+    return "";
+  }
+
+  function renderSummaryTables() {
+    renderTable(els.positionTable, state.positionRows, {
+      columns: TABLE_COLUMNS.position,
+      tableClass: "summaryTable"
+    });
+    renderTable(els.keywordTable, state.keywordRows, {
+      columns: TABLE_COLUMNS.keyword,
+      tableClass: "summaryTable"
+    });
+    renderTable(els.detailTable, state.detailRows, {
+      columns: TABLE_COLUMNS.detail,
+      tableClass: "detailSummaryTable"
+    });
+  }
+
+  function renderNewAdSection() {
+    if (!els.newAdTablePanel) return;
+    // V5 fix: 始终展示表4，不再依赖 trendStyle 选项
+    els.newAdTablePanel.style.display = "";
+
+    const columns = TABLE_COLUMNS.newAdDetail;
+    const rows = state.newAdDetailRows;
+
+    if (els.newAdDetailTable) {
+      if (!rows.length) {
+        els.newAdDetailTable.innerHTML = "<div class=\"empty\">暂无新广告数据</div>";
+      } else {
+        const head = columns.map((col) => "<th>" + escapeHtml(col) + "</th>").join("");
+        const body = rows.map((row) => {
+          const cells = columns.map((col) => {
+            const value = row[col];
+            const isNumber = typeof value === "number";
+            return "<td" + (isNumber ? " class=\"num\"" : "") + ">" + escapeHtml(String(value ?? "")) + "</td>";
+          }).join("");
+          return "<tr>" + cells + "</tr>";
+        }).join("");
+        els.newAdDetailTable.innerHTML = "<table class=\"detailSummaryTable\"><thead><tr>" + head + "</tr></thead><tbody>" + body + "</tbody></table>";
+      }
+    }
+
+    renderNewAdTrendChart();
+  }
+
+  function renderTargetAdSection() {
+    if (!els.targetAdTablePanel) return;
+    // V5 fix: 始终展示表5，不再依赖 trendStyle 选项
+    els.targetAdTablePanel.style.display = "";
+
+    const columns = TABLE_COLUMNS.targetAdDetail;
+    const rows = state.targetAdDetailRows;
+
+    if (els.targetAdDetailTable) {
+      if (!rows.length) {
+        els.targetAdDetailTable.innerHTML = "<div class=\"empty\">暂无目标广告数据</div>";
+      } else {
+        const head = columns.map((col) => "<th>" + escapeHtml(col) + "</th>").join("");
+        const body = rows.map((row) => {
+          const cells = columns.map((col) => {
+            const value = row[col];
+            const isNumber = typeof value === "number";
+            return "<td" + (isNumber ? " class=\"num\"" : "") + ">" + escapeHtml(String(value ?? "")) + "</td>";
+          }).join("");
+          return "<tr>" + cells + "</tr>";
+        }).join("");
+        els.targetAdDetailTable.innerHTML = "<table class=\"detailSummaryTable\"><thead><tr>" + head + "</tr></thead><tbody>" + body + "</tbody></table>";
+      }
+    }
+
+    renderTargetAdTrendChart();
+  }
+
+  function renderNewAdTrendChart() {
+    if (!els.newAdTrend || !els.newAdTrendMeta) return;
+    const period = els.trendPeriod.value || "day";
+    const periodText = trendPeriodText(period);
+    const buckets = trendBuckets(state.filteredRecords, period);
+
+    // Build trend rows: for each keyword+position combo, compute new ad percentage over time
+    const combos = new Map();
+    state.newAdDetailRows.forEach((row) => {
+      if (!row["总数量"]) return;
+      const key = row["关键词名称"] + "||" + row["广告位置"];
+      combos.set(key, { keyword: row["关键词名称"], position: row["广告位置"] });
+    });
+
+    const rows = Array.from(combos.values()).map((combo) => {
+      const points = buckets.map((bucket) => {
+        const bucketRecords = state.filteredRecords.filter((r) => bucketForDate(r.date, period).id === bucket.id);
+        const comboRecords = bucketRecords.filter((r) => r.keyword === combo.keyword && r.positionGroup === combo.position);
+        const totalCount = comboRecords.length;
+        const newAdCount = comboRecords.filter((r) => isNewAd(r.campaign)).length;
+        return { ...bucket, own: newAdCount, comp: totalCount - newAdCount, total: totalCount };
+      });
+      const total = points.reduce((sum, p) => sum + p.total, 0);
+      return { label: combo.keyword + " / " + combo.position, total, points };
+    }).filter((r) => r.total > 0).sort((a, b) => a.label.localeCompare(b.label, "zh-CN"));
+
+    // Render as line chart (as user requested 折线图)
+    renderTrendChart(els.newAdTrend, els.newAdTrendMeta, rows, periodText, buckets, "line");
+  }
+
+  function renderTargetAdTrendChart() {
+    if (!els.targetAdTrend || !els.targetAdTrendMeta) return;
+    const period = els.trendPeriod.value || "day";
+    const periodText = trendPeriodText(period);
+    const buckets = trendBuckets(state.filteredRecords, period);
+
+    const combos = new Map();
+    state.targetAdDetailRows.forEach((row) => {
+      if (!row["总数量"]) return;
+      const key = row["关键词名称"] + "||" + row["广告位置"];
+      combos.set(key, { keyword: row["关键词名称"], position: row["广告位置"] });
+    });
+
+    const rows = Array.from(combos.values()).map((combo) => {
+      const points = buckets.map((bucket) => {
+        const bucketRecords = state.filteredRecords.filter((r) => bucketForDate(r.date, period).id === bucket.id);
+        const comboRecords = bucketRecords.filter((r) => r.keyword === combo.keyword && r.positionGroup === combo.position);
+        const totalCount = comboRecords.length;
+        const targetCount = comboRecords.filter((r) => isTargetAd(r)).length;
+        return { ...bucket, own: targetCount, comp: totalCount - targetCount, total: totalCount };
+      });
+      const total = points.reduce((sum, p) => sum + p.total, 0);
+      return { label: combo.keyword + " / " + combo.position, total, points };
+    }).filter((r) => r.total > 0).sort((a, b) => a.label.localeCompare(b.label, "zh-CN"));
+
+    renderTrendChart(els.targetAdTrend, els.targetAdTrendMeta, rows, periodText, buckets, "line");
+  }
+
+  function renderTrendCharts() {
+    const period = els.trendPeriod.value || "day";
+    const periodText = trendPeriodText(period);
+    const buckets = trendBuckets(state.filteredRecords, period);
+
+    renderTrendChart(
+      els.positionTrend,
+      els.positionTrendMeta,
+      buildTrendRows("position", buckets, period),
+      periodText,
+      buckets
+    );
+    renderTrendChart(
+      els.keywordTrend,
+      els.keywordTrendMeta,
+      buildTrendRows("keyword", buckets, period),
+      periodText,
+      buckets
+    );
+    renderTrendChart(
+      els.detailTrend,
+      els.detailTrendMeta,
+      buildTrendRows("detail", buckets, period),
+      periodText,
+      buckets
+    );
+  }
+
+  function buildTrendRows(type, buckets, period) {
+    if (!buckets.length) return [];
+    const series = trendSeries(type);
+    const rows = series.map((item) => {
+      const records = state.filteredRecords.filter(item.match);
+      const points = buckets.map((bucket) => {
+        const counts = summarizeRecords(records.filter((record) => bucketForDate(record.date, period).id === bucket.id));
+        return { ...bucket, ...counts };
+      });
+      const total = points.reduce((sum, point) => sum + point.total, 0);
+      return { label: item.label, total, points };
+    }).filter((row) => row.total > 0);
+    // V7: 所有折线图统一按词序排列（不再按数量降序）
+    // V7-fix: detail类型（表3）不限制数量，展示全部词+位置组合；其余类型保留上限
+    const sorted = rows.sort((a, b) => a.label.localeCompare(b.label, "zh-CN"));
+    return type === "detail" ? sorted : sorted.slice(0, 7);
+  }
+
+  function trendSeries(type) {
+    if (type === "position") {
+      return POSITIONS.map((position) => ({
+        label: position,
+        match: (record) => record.positionGroup === position
+      }));
+    }
+    if (type === "keyword") {
+      return activeKeywords().map((keyword) => ({
+        label: keyword,
+        match: (record) => record.keyword === keyword
+      }));
+    }
+    const combos = new Map();
+    state.filteredRecords.forEach((record) => {
+      const key = `${record.keyword}||${record.positionGroup}`;
+      if (!combos.has(key)) {
+        combos.set(key, {
+          keyword: record.keyword,
+          position: record.positionGroup,
+          label: `${record.keyword} / ${record.positionGroup}`
+        });
+      }
+    });
+    return Array.from(combos.values()).map((combo) => ({
+      label: combo.label,
+      match: (record) => record.keyword === combo.keyword && record.positionGroup === combo.position
+    }));
+  }
+
+  function renderTrendChart(container, metaEl, rows, periodText, buckets, forcedStyle) {
+    const singlePeriodNote = buckets.length === 1 && periodText !== "按天" ? " / 当前数据只覆盖 1 个周期" : "";
+    const style = forcedStyle || els.trendStyle.value || "matrix";
+    const styleText = trendStyleText(style);
+    metaEl.textContent = `${periodText} / ${styleText}${rows.length ? ` / 展示前 ${rows.length} 项` : ""}${singlePeriodNote}`;
+    if (!state.filteredRecords.length) {
+      container.innerHTML = `<div class="empty">暂无数据</div>`;
+      return;
+    }
+    if (!buckets.length) {
+      container.innerHTML = `<div class="empty">当前数据没有可用日期</div>`;
+      return;
+    }
+    if (!rows.length) {
+      container.innerHTML = `<div class="empty">当前筛选没有趋势数据</div>`;
+      return;
+    }
+    // V5: 折线图模式不渲染外部HTML轴标签（轴标签已内嵌到SVG中与数据点精确对齐）
+    const isLineMode = style === "line";
+    const axis = isLineMode ? "" : `
+      <div class="trendRow trendAxisRow">
+        <div></div>
+        <div class="trendBars">${buckets.map((bucket) => `<span class="trendAxisLabel" title="${escapeAttr(bucket.label)}">${escapeHtml(bucket.label)}</span>`).join("")}</div>
+        <div>合计</div>
+      </div>`;
+    container.innerHTML = axis + rows.map((row) => {
+      const cells = style === "line"
+        ? renderTrendLine(row, buckets)
+        : row.points.map((point) => style === "stack100"
+          ? renderTrendStackCell(row, point)
+          : renderTrendMatrixCell(row, point)).join("");
+      return `
+        <div class="trendRow">
+          <div class="trendLabel" title="${escapeAttr(row.label)}">${escapeHtml(row.label)}</div>
+          <div class="trendBars">${cells}</div>
+          <div class="trendValue">${row.total}</div>
+        </div>`;
+    }).join("");
+    syncTrendScroll(container);
+  }
+
+  function syncTrendScroll(container) {
+    if (!container) return;
+    const barsEls = container.querySelectorAll(".trendBars");
+    if (barsEls.length <= 1) return;
+
+    let syncing = false;
+    function scrollHandler(source) {
+      if (syncing) return;
+      syncing = true;
+      barsEls.forEach((el) => {
+        if (el !== source) {
+          el.scrollLeft = source.scrollLeft;
+        }
+      });
+      // Use requestAnimationFrame to batch the sync
+      requestAnimationFrame(() => { syncing = false; });
+    }
+
+    barsEls.forEach((el) => {
+      // Remove previous listener to avoid duplicates (use a simple flag approach)
+      el.removeEventListener("scroll", el.__trendScrollHandler);
+      el.__trendScrollHandler = (e) => scrollHandler(e.target);
+      el.addEventListener("scroll", el.__trendScrollHandler, { passive: true });
+    });
+  }
+
+  function renderTrendMatrixCell(row, point) {
+    const ownPct = point.total ? (point.own / point.total) * 100 : 0;
+    const compPct = point.total ? (point.comp / point.total) * 100 : 0;
+    const title = trendPointTitle(row, point);
+    if (!point.total) {
+      return `
+        <span class="trendBucket emptyBucket" title="${escapeAttr(title)}">
+          <span class="trendCellTotal">无数据</span>
+          <span class="trendMiniBar"></span>
+          <span class="trendRatioText">-</span>
+        </span>`;
+    }
+    return `
+      <span class="trendBucket" title="${escapeAttr(title)}">
+        <span class="trendCellTotal">总 ${point.total}</span>
+        <span class="trendMiniBar">
+          <span class="trendOwn" style="width:${ownPct}%"></span>
+          <span class="trendComp" style="width:${compPct}%"></span>
+        </span>
+        <span class="trendRatioText">我 ${percent(point.own, point.total)} / 竞 ${percent(point.comp, point.total)}</span>
+      </span>`;
+  }
+
+  function renderTrendStackCell(row, point) {
+    const ownPct = point.total ? (point.own / point.total) * 100 : 0;
+    const compPct = point.total ? (point.comp / point.total) * 100 : 0;
+    const title = trendPointTitle(row, point);
+    if (!point.total) {
+      return `
+        <span class="trendBucket emptyBucket stack100" title="${escapeAttr(title)}">
+          <span class="trendOwnPctLabel">无数据</span>
+          <span class="trendStackBar"></span>
+          <span class="trendRatioText">总 0</span>
+        </span>`;
+    }
+    return `
+      <span class="trendBucket stack100" title="${escapeAttr(title)}">
+        <span class="trendOwnPctLabel">我方 ${percent(point.own, point.total)}</span>
+        <span class="trendStackBar">
+          <span class="trendOwn" style="height:${ownPct}%"></span>
+          <span class="trendComp" style="height:${compPct}%"></span>
+        </span>
+        <span class="trendRatioText">总 ${point.total}</span>
+      </span>`;
+  }
+
+  function renderTrendLine(row, buckets) {
+    const pxPerBucket = 60;
+    const width = Math.max(180, buckets.length * pxPerBucket);
+    const height = 100; // V5: 增加高度以容纳X轴标签
+    const padX = 20;
+    const top = 10;
+    const bottom = 64; // 数据区底部
+    const usable = Math.max(1, width - padX * 2);
+
+    // V5: 构建X轴日期标签（与数据点共享同一坐标系统）
+    const axisLabels = buckets.map((bucket, index) => {
+      const x = buckets.length === 1 ? width / 2 : padX + (usable * index) / (buckets.length - 1);
+      return `<text class="trendLineAxisLabel" x="${x.toFixed(1)}" y="${(bottom + 16).toFixed(1)}" font-size="9" text-anchor="middle">${escapeHtml(bucket.label)}</text>`;
+    }).join("");
+
+    const points = row.points.map((point, index) => {
+      const x = buckets.length === 1 ? width / 2 : padX + (usable * index) / (buckets.length - 1);
+      const ownPct = point.total ? (point.own / point.total) * 100 : 0;
+      const y = bottom - (ownPct / 100) * (bottom - top);
+      return { ...point, x, y, ownPct };
+    });
+    const path = points.map((point, index) => `${index ? "L" : "M"}${point.x.toFixed(1)},${point.y.toFixed(1)}`).join(" ");
+    const pointEls = points.map((point) => {
+      const title = trendPointTitle(row, point);
+      return `
+        <g>
+          <title>${escapeHtml(title)}</title>
+          <circle class="trendLinePoint" cx="${point.x.toFixed(1)}" cy="${point.y.toFixed(1)}" r="3"></circle>
+          <text class="trendLineText" x="${point.x.toFixed(1)}" y="${Math.max(7, point.y - 6).toFixed(1)}" font-size="8">${point.total ? percent(point.own, point.total) : "-"}</text>
+        </g>`;
+    }).join("");
+    return `
+      <svg class="trendLineSvg" style="min-width:${width}px" viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeAttr(row.label)} 我品占比折线">
+        <line x1="${padX}" y1="${bottom}" x2="${width - padX}" y2="${bottom}" stroke="#d8e1e8"></line>
+        <line x1="${padX}" y1="${top}" x2="${width - padX}" y2="${top}" stroke="#eef2f5"></line>
+        <!-- V5: X轴日期标签（内嵌SVG，与数据点坐标精确对齐） -->
+        ${axisLabels}
+        <path class="trendLinePath" d="${path}"></path>
+        ${pointEls}
+      </svg>`;
+  }
+
+  function trendPointTitle(row, point) {
+    return `${row.label} / ${point.label}：我方占比 ${percent(point.own, point.total)}，竞品占比 ${percent(point.comp, point.total)}，总数 ${point.total}，我品总数 ${point.own}，竞品总数 ${point.comp}`;
+  }
+
+  function trendStyleText(style) {
+    if (style === "line") return "我品占比折线";
+    if (style === "stack100") return "百分比堆积柱";
+    return "总量与比例矩阵";
+  }
+
+  function trendBuckets(records, period) {
+    const map = new Map();
+    records.forEach((record) => {
+      if (!record.date) return;
+      const bucket = bucketForDate(record.date, period);
+      if (bucket.id && !map.has(bucket.id)) {
+        map.set(bucket.id, bucket);
+      }
+    });
+    return Array.from(map.values()).sort((a, b) => a.sortKey.localeCompare(b.sortKey));
+  }
+
+  function bucketForDate(date, period) {
+    if (!date) return { id: "", label: "", sortKey: "" };
+    if (period === "month") {
+      const id = date.slice(0, 7);
+      return { id, label: id, sortKey: id };
+    }
+    if (period === "week") {
+      return isoWeekBucket(date);
+    }
+    return { id: date, label: date.slice(5), sortKey: date };
+  }
+
+  function isoWeekBucket(date) {
+    const [year, month, day] = date.split("-").map(Number);
+    const value = new Date(Date.UTC(year, month - 1, day));
+    const dayNum = value.getUTCDay() || 7;
+    value.setUTCDate(value.getUTCDate() + 4 - dayNum);
+    const weekYear = value.getUTCFullYear();
+    const yearStart = new Date(Date.UTC(weekYear, 0, 1));
+    const weekNo = Math.ceil((((value - yearStart) / 86400000) + 1) / 7);
+    const id = `${weekYear}-W${String(weekNo).padStart(2, "0")}`;
+    return { id, label: id, sortKey: id };
+  }
+
+  function trendPeriodText(period) {
+    if (period === "week") return "按周";
+    if (period === "month") return "按月";
+    return "按天";
+  }
+
+  function renderTable(container, rows, config) {
+    if (!rows.length) {
+      container.innerHTML = `<div class="empty">暂无数据</div>`;
+      return;
+    }
+    const head = config.columns.map((column) => `<th>${escapeHtml(column)}</th>`).join("");
+    const body = rows.map((row) => {
+      const attrs = traceAttrs(row);
+      const cls = `traceable${row.__total ? " summaryTotal" : ""}`;
+      const cells = config.columns.map((column) => {
+        const value = row[column];
+        const isNumber = typeof value === "number";
+        return `<td${isNumber ? " class=\"num\"" : ""}>${escapeHtml(String(value ?? ""))}</td>`;
+      }).join("");
+      return `<tr class="${cls}" title="点击查看来源明细" ${attrs}>${cells}</tr>`;
+    }).join("");
+    container.innerHTML = `<table class="${config.tableClass}"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
+  }
+
+  function renderSources() {
+    const rows = getFilteredSources();
+    els.sourceSummaryInfo.textContent = `${rows.length} 条来源`;
+    const maxPage = Math.max(0, Math.ceil(rows.length / SOURCE_PAGE_SIZE) - 1);
+    state.sourcePage = Math.min(state.sourcePage, maxPage);
+    const start = state.sourcePage * SOURCE_PAGE_SIZE;
+    const pageRows = rows.slice(start, start + SOURCE_PAGE_SIZE);
+
+    els.traceLabel.textContent = `当前显示：${traceLabelText()}${els.sourceSearch.value.trim() ? "，含搜索条件" : ""}`;
+    els.sourcePageInfo.textContent = rows.length
+      ? `${start + 1}-${start + pageRows.length} / ${rows.length} 条`
+      : "0 条";
+    els.prevPageBtn.disabled = state.sourcePage <= 0;
+    els.nextPageBtn.disabled = state.sourcePage >= maxPage;
+    els.downloadCurrentSourcesBtn.disabled = rows.length === 0;
+    renderSourceFocus();
+
+    if (!pageRows.length) {
+      els.sourceTable.innerHTML = `<div class="empty">暂无来源记录</div>`;
+      return;
+    }
+
+    const columns = ["文件", "关键词", "日期", "时间", "广告类型", "广告位置", "原位置", "ASIN", "判定", "Sheet", "单元格", "广告活动名", "操作"];
+    const head = columns.map((column) => `<th>${escapeHtml(column)}</th>`).join("");
+    const body = pageRows.map((record) => {
+      const row = sourceRowForDisplay(record);
+      return `<tr class="traceable${record.id === state.focusSourceId ? " sourceSelected" : ""}" title="点击定位这条来源" data-source-record-id="${escapeAttr(record.id)}">${columns.map((column) => {
+        const value = row[column] || "";
+        if (column === "判定") {
+          const cls = value === "我方" ? "tag" : "tag comp";
+          return `<td><span class="${cls}">${value}</span></td>`;
+        }
+        if (column === "操作") {
+          return `<td><button class="button secondary small" type="button" data-download-file="${escapeAttr(record.sourceFileId)}">原文件</button></td>`;
+        }
+        return `<td>${escapeHtml(String(value))}</td>`;
+      }).join("")}</tr>`;
+    }).join("");
+    els.sourceTable.innerHTML = `<table class="sourceTable"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
+  }
+
+  function renderSourceFocus() {
+    if (!state.focusSourceId) {
+      els.sourceFocus.className = "sourceFocus";
+      els.sourceFocus.innerHTML = "";
+      return;
+    }
+    const record = state.records.find((item) => item.id === state.focusSourceId);
+    if (!record) {
+      els.sourceFocus.className = "sourceFocus";
+      els.sourceFocus.innerHTML = "";
+      return;
+    }
+    els.sourceFocus.className = "sourceFocus show";
+    els.sourceFocus.innerHTML = `
+      <span class="sourceFocusText">${escapeHtml(sourceLocationText(record))}</span>
+      <span class="fileActions">
+        <button class="button secondary small" type="button" data-copy-source="${escapeAttr(record.id)}">复制定位</button>
+        <button class="button secondary small" type="button" data-download-file="${escapeAttr(record.sourceFileId)}">下载原文件</button>
+      </span>`;
+  }
+
+  function getFilteredSources() {
+    const search = els.sourceSearch.value.trim().toUpperCase();
+    return state.filteredRecords.filter((record) => {
+      if (state.activeTrace) {
+        if (state.activeTrace.keyword && record.keyword !== state.activeTrace.keyword) return false;
+        if (state.activeTrace.position && record.positionGroup !== state.activeTrace.position) return false;
+      }
+      if (!search) return true;
+      const haystack = [
+        record.fileName, record.keyword, record.date, record.adType, record.sheetName,
+        record.positionGroup, record.rawPosition, record.time, record.asin, record.ownerType,
+        record.sourceCell, record.campaign
+      ].join(" ").toUpperCase();
+      return haystack.includes(search);
+    });
+  }
+
+  function traceAttrs(row) {
+    return [
+      `data-trace-type="${escapeAttr(row.__traceType || "all")}"`,
+      row.__keyword ? `data-keyword="${escapeAttr(row.__keyword)}"` : "",
+      row.__position ? `data-position="${escapeAttr(row.__position)}"` : ""
+    ].filter(Boolean).join(" ");
+  }
+
+  function handleDocumentClick(event) {
+    const chartDrill = event.target.closest("[data-chart-drill]");
+    if (chartDrill) {
+      const type = chartDrill.dataset.chartDrill;
+      const value = chartDrill.dataset.chartValue || "";
+      if (type === "position") {
+        state.positionDrill = value;
+      }
+      if (type === "keyword") {
+        state.keywordDrill = value;
+      }
+      renderCharts();
+      return;
+    }
+
+    const deleteButton = event.target.closest("[data-delete-file]");
+    if (deleteButton) {
+      deleteStoredFileWithConfirm(deleteButton.dataset.deleteFile);
+      return;
+    }
+
+    const downloadButton = event.target.closest("[data-download-file]");
+    if (downloadButton) {
+      downloadOriginalFile(downloadButton.dataset.downloadFile);
+      return;
+    }
+
+    const copyButton = event.target.closest("[data-copy-source]");
+    if (copyButton) {
+      copySourceLocation(copyButton.dataset.copySource);
+      return;
+    }
+
+    const sourceRow = event.target.closest("[data-source-record-id]");
+    if (sourceRow) {
+      state.focusSourceId = sourceRow.dataset.sourceRecordId || "";
+      renderSources();
+      return;
+    }
+
+    const traceRow = event.target.closest("[data-trace-type]");
+    if (traceRow) {
+      const type = traceRow.dataset.traceType;
+      navigateToSources(type === "all"
+        ? null
+        : {
+          type,
+          keyword: traceRow.dataset.keyword || "",
+          position: traceRow.dataset.position || ""
+        });
+    }
+  }
+
+  function navigateToSources(trace = state.activeTrace) {
+    state.activeTrace = trace;
+    state.focusSourceId = "";
+    state.sourcePage = 0;
+    showTab("sources");
+    renderSources();
+  }
+
+  function traceLabelText() {
+    if (!state.activeTrace) return "全部来源";
+    if (state.activeTrace.type === "position") return state.activeTrace.position;
+    if (state.activeTrace.type === "keyword") return state.activeTrace.keyword;
+    return `${state.activeTrace.keyword} / ${state.activeTrace.position}`;
+  }
+
+  function sourceRowForDisplay(record) {
+    return {
+      "文件": record.fileName,
+      "关键词": record.keyword,
+      "日期": record.date,
+      "时间": record.time,
+      "广告类型": record.adType,
+      "广告位置": record.positionGroup,
+      "原位置": record.rawPosition,
+      "ASIN": record.asin,
+      "判定": record.ownerType,
+      "Sheet": record.sheetName,
+      "单元格": record.sourceCell,
+      "广告活动名": record.campaign,
+      "操作": ""
+    };
+  }
+
+  function sourceRowsForExport(records) {
+    return records.map((record) => ({
+      "文件": record.fileName,
+      "关键词": record.keyword,
+      "日期": record.date,
+      "时间": record.time,
+      "广告类型": record.adType,
+      "Sheet": record.sheetName,
+      "广告位置": record.positionGroup,
+      "原位置": record.rawPosition,
+      "页码": record.page,
+      "位置序号": record.positionIndex,
+      "ASIN": record.asin,
+      "判定": record.ownerType,
+      "单元格": record.sourceCell,
+      "Excel行号": record.rowNumber,
+      "Excel列号": record.colNumber,
+      "广告活动名": record.campaign,
+      "单元格原值": record.sourceValue
+    }));
+  }
+
+  function sourceLocationText(record) {
+    return `${record.fileName} / ${record.sheetName} / ${record.sourceCell} / ${record.date || "无日期"} ${record.time || ""} / ${record.asin}`;
+  }
+
+  async function copySourceLocation(recordId) {
+    const record = state.records.find((item) => item.id === recordId);
+    if (!record) return;
+    const text = sourceLocationText(record);
+    try {
+      await navigator.clipboard.writeText(text);
+      setNotice("来源定位信息已复制。");
+    } catch {
+      setNotice(text);
+    }
+  }
+
+  async function deleteStoredFileWithConfirm(fileId) {
+    const file = state.storedFiles.find((item) => item.id === fileId);
+    if (!file) return;
+    const first = window.confirm(`确认删除历史文件“${file.fileName}”？`);
+    if (!first) return;
+    const second = window.confirm("再次确认删除？删除后该文件的历史数据也会从汇总中移除。");
+    if (!second) return;
+
+    try {
+      await removeStoredFile(fileId);
+      await loadStoredLibrary();
+      refreshAll({ resetTrace: true });
+      setNotice(`已删除：${file.fileName}`);
+    } catch (error) {
+      setNotice(error.message || String(error), "error");
+    }
+  }
+
+  async function downloadOriginalFile(fileId) {
+    try {
+      const stored = await getStoredFile(fileId);
+      if (!stored || !stored.buffer) {
+        throw new Error("这个历史文件没有保存到原始文件缓存，只能查看已解析来源。");
+      }
+      const blob = new Blob([stored.buffer], {
+        type: stored.type || "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      });
+      downloadBlob(blob, stored.fileName);
+    } catch (error) {
+      setNotice(error.message || String(error), "error");
+    }
+  }
+
+  function clearFilters() {
+    els.dateStart.value = "";
+    els.dateEnd.value = "";
+    els.timeStart.value = "";
+    els.timeEnd.value = "";
+    refreshAll({ resetTrace: true });
+  }
+
+  function getFilters() {
+    return {
+      dateStart: els.dateStart.value || "",
+      dateEnd: els.dateEnd.value || "",
+      timeStart: normalizeTime(els.timeStart.value || ""),
+      timeEnd: normalizeTime(els.timeEnd.value || "")
+    };
+  }
+
+  function recordMatchesFilters(record, filters) {
+    if (record.adType !== "SP" && record.adType !== "SOR") return false;
+    if (filters.dateStart || filters.dateEnd) {
+      if (!record.date) return false;
+      if (filters.dateStart && record.date < filters.dateStart) return false;
+      if (filters.dateEnd && record.date > filters.dateEnd) return false;
+    }
+    if (filters.timeStart || filters.timeEnd) {
+      const time = normalizeTime(record.time);
+      if (!time) return false;
+      const start = filters.timeStart || "00:00";
+      const end = filters.timeEnd || "23:59";
+      if (start <= end) {
+        if (time < start || time > end) return false;
+      } else if (!(time >= start || time <= end)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  function fileMatchesDateFilters(file, filters) {
+    if (filters.dateStart || filters.dateEnd) {
+      if (!file.date) return false;
+      if (filters.dateStart && file.date < filters.dateStart) return false;
+      if (filters.dateEnd && file.date > filters.dateEnd) return false;
+    }
+    return true;
+  }
+
+  function syncDateBounds() {
+    const dates = state.storedFiles.map((file) => file.date).filter(Boolean).sort();
+    if (!dates.length) return;
+    const min = dates[0];
+    const max = dates[dates.length - 1];
+    els.dateStart.min = min;
+    els.dateStart.max = max;
+    els.dateEnd.min = min;
+    els.dateEnd.max = max;
+  }
+
+  function setDownloadsEnabled(enabled) {
+    [
+      els.downloadSourcesBtn,
+      els.downloadWorkbookBtn,
+      els.downloadPositionCsv,
+      els.downloadKeywordCsv,
+      els.downloadDetailCsv
+    ].forEach((button) => {
+      button.disabled = !enabled;
+    });
+  }
+
+  function downloadWorkbook() {
+    try {
+      ensureXlsx();
+      const wb = XLSX.utils.book_new();
+      appendJsonSheet(wb, stripRows(state.positionRows, TABLE_COLUMNS.position), "按位置汇总");
+      appendJsonSheet(wb, stripRows(state.keywordRows, TABLE_COLUMNS.keyword), "按关键词汇总");
+      appendJsonSheet(wb, stripRows(state.detailRows, TABLE_COLUMNS.detail), "分关键词分位置明细");
+      appendJsonSheet(wb, trendRowsForExport("position"), "按位置趋势");
+      appendJsonSheet(wb, trendRowsForExport("keyword"), "按关键词趋势");
+      appendJsonSheet(wb, trendRowsForExport("detail"), "关键词位置趋势");
+      appendJsonSheet(wb, sourceRowsForExport(state.filteredRecords), "来源明细");
+      XLSX.writeFile(wb, `广告放映机分析结果_${dateStamp()}.xlsx`);
+    } catch (error) {
+      setNotice(error.message || String(error), "error");
+    }
+  }
+
+  function appendJsonSheet(wb, rows, sheetName) {
+    const sheet = XLSX.utils.json_to_sheet(rows.length ? rows : [{}]);
+    XLSX.utils.book_append_sheet(wb, sheet, sheetName);
+  }
+
+  function trendRowsForExport(type) {
+    const period = els.trendPeriod.value || "day";
+    const buckets = trendBuckets(state.filteredRecords, period);
+    return buildTrendRows(type, buckets, period).flatMap((row) => {
+      return row.points.map((point) => ({
+        "趋势粒度": trendPeriodText(period),
+        "系列": row.label,
+        "周期": point.id,
+        "周期显示": point.label,
+        "我方商品数": point.own,
+        "竞品商品数": point.comp,
+        "总数量": point.total,
+        "我方占比": percent(point.own, point.total),
+        "竞品占比": percent(point.comp, point.total)
+      }));
+    });
+  }
+
+  function downloadRules() {
+    const rules = getRulesFromForm();
+    const blob = new Blob([JSON.stringify(rules, null, 2)], { type: "application/json;charset=utf-8" });
+    downloadBlob(blob, "广告放映机位置规则模板.json");
+  }
+
+  function downloadCsv(rows, fileName) {
+    if (!rows.length) return;
+    const columns = Object.keys(rows[0]);
+    const csv = [
+      columns.join(","),
+      ...rows.map((row) => columns.map((column) => escapeCsv(row[column])).join(","))
+    ].join("\n");
+    const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" });
+    downloadBlob(blob, fileName);
+  }
+
+  function downloadBlob(blob, fileName) {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  function stripRows(rows, columns) {
+    return rows.map((row) => {
+      const out = {};
+      columns.forEach((column) => {
+        out[column] = row[column];
+      });
+      return out;
+    });
+  }
+
+  async function loadStoredLibrary() {
+    state.storedFiles = await readStoredFiles();
+  }
+
+  async function migrateNonSpSorHistory() {
+    const result = { reparsed: 0, missingOriginal: 0 };
+    if (!window.XLSX || !state.storedFiles.some(storedFileNeedsSpSorReparse)) {
+      return result;
+    }
+    const rules = getRulesFromForm();
+    for (const file of state.storedFiles) {
+      if (!storedFileNeedsSpSorReparse(file)) continue;
+      const full = await getStoredFile(file.id);
+      if (!full || !full.buffer) {
+        result.missingOriginal += 1;
+        continue;
+      }
+      const next = { ...full };
+      next.records = parseWorkbookBuffer(full.buffer, next, rules);
+      next.recordCount = next.records.length;
+      await saveStoredFile(next, full.buffer);
+      result.reparsed += 1;
+    }
+    if (result.reparsed) {
+      state.storedFiles = await readStoredFiles();
+    }
+    return result;
+  }
+
+  function storedFileNeedsSpSorReparse(file) {
+    const records = file && Array.isArray(file.records) ? file.records : [];
+    if (!records.length) return true;
+    return !records.some((record) => record.adType === "SP" || record.adType === "SOR");
+  }
+
+  async function openDb() {
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open(DB_NAME, DB_VERSION);
+      request.onupgradeneeded = () => {
+        const db = request.result;
+        if (!db.objectStoreNames.contains(STORE_NAME)) {
+          db.createObjectStore(STORE_NAME, { keyPath: "id" });
+        }
+      };
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error || new Error("IndexedDB 打开失败"));
+    });
+  }
+
+  async function readStoredFiles() {
+    if (state.dbUsable) {
+      try {
+        const db = await openDb();
+        const files = await dbGetAll(db);
+        db.close();
+        return files.map(stripBufferFromFile);
+      } catch {
+        state.dbUsable = false;
+      }
+    }
+    return readFallbackFiles();
+  }
+
+  async function saveStoredFile(file, buffer) {
+    if (state.dbUsable) {
+      try {
+        const db = await openDb();
+        await dbPut(db, { ...file, buffer });
+        db.close();
+        return;
+      } catch {
+        state.dbUsable = false;
+      }
+    }
+    const files = readFallbackFiles();
+    const next = files.filter((item) => item.id !== file.id);
+    next.push(stripBufferFromFile(file));
+    localStorage.setItem(FALLBACK_KEY, JSON.stringify(next));
+  }
+
+  async function getStoredFile(fileId) {
+    if (state.dbUsable) {
+      try {
+        const db = await openDb();
+        const file = await dbGet(db, fileId);
+        db.close();
+        if (file) return file;
+      } catch {
+        state.dbUsable = false;
+      }
+    }
+    return state.storedFiles.find((file) => file.id === fileId) || null;
+  }
+
+  async function removeStoredFile(fileId) {
+    if (state.dbUsable) {
+      try {
+        const db = await openDb();
+        await dbDelete(db, fileId);
+        db.close();
+        return;
+      } catch {
+        state.dbUsable = false;
+      }
+    }
+    const files = readFallbackFiles().filter((file) => file.id !== fileId);
+    localStorage.setItem(FALLBACK_KEY, JSON.stringify(files));
+  }
+
+  function dbGetAll(db) {
+    return new Promise((resolve, reject) => {
+      const request = db.transaction(STORE_NAME, "readonly").objectStore(STORE_NAME).getAll();
+      request.onsuccess = () => resolve(request.result || []);
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  function dbGet(db, id) {
+    return new Promise((resolve, reject) => {
+      const request = db.transaction(STORE_NAME, "readonly").objectStore(STORE_NAME).get(id);
+      request.onsuccess = () => resolve(request.result || null);
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  function dbPut(db, file) {
+    return new Promise((resolve, reject) => {
+      const request = db.transaction(STORE_NAME, "readwrite").objectStore(STORE_NAME).put(file);
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  function dbDelete(db, id) {
+    return new Promise((resolve, reject) => {
+      const request = db.transaction(STORE_NAME, "readwrite").objectStore(STORE_NAME).delete(id);
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  function readFallbackFiles() {
+    try {
+      const raw = localStorage.getItem(FALLBACK_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function stripBufferFromFile(file) {
+    const { buffer, ...rest } = file;
+    return rest;
+  }
+
+  function getRulesFromForm() {
+    return mergeRules({
+      spSheetNames: splitList(els.spSheets.value),
+      sorSheetNames: splitList(els.sorSheets.value),
+      tos: {
+        startRank: toInt(els.tosStart.value, 1),
+        endRank: toInt(els.tosEnd.value, 4),
+        label: DEFAULT_RULES.tos.label
+      },
+      ros: {
+        startRank: toInt(els.rosStart.value, 5),
+        endRank: toInt(els.rosEnd.value, 12),
+        label: DEFAULT_RULES.ros.label
+      },
+      sor: {
+        pageText: els.sorPage.value.trim() || "第1页",
+        middleStart: toInt(els.middleStart.value, 1),
+        middleEnd: toInt(els.middleEnd.value, 5),
+        middleLabel: DEFAULT_RULES.sor.middleLabel,
+        bottomStart: toInt(els.bottomStart.value, 6),
+        bottomEnd: toInt(els.bottomEnd.value, 10),
+        bottomLabel: DEFAULT_RULES.sor.bottomLabel
+      }
+    });
+  }
+
+  function applyRulesToForm(rules) {
+    els.spSheets.value = rules.spSheetNames.join(", ");
+    els.sorSheets.value = rules.sorSheetNames.join(", ");
+    els.tosStart.value = rules.tos.startRank;
+    els.tosEnd.value = rules.tos.endRank;
+    els.rosStart.value = rules.ros.startRank;
+    els.rosEnd.value = rules.ros.endRank;
+    els.sorPage.value = rules.sor.pageText;
+    els.middleStart.value = rules.sor.middleStart;
+    els.middleEnd.value = rules.sor.middleEnd;
+    els.bottomStart.value = rules.sor.bottomStart;
+    els.bottomEnd.value = rules.sor.bottomEnd;
+  }
+
+  function mergeRules(input) {
+    return {
+      spSheetNames: Array.isArray(input.spSheetNames) && input.spSheetNames.length
+        ? input.spSheetNames
+        : DEFAULT_RULES.spSheetNames,
+      sorSheetNames: Array.isArray(input.sorSheetNames) && input.sorSheetNames.length
+        ? input.sorSheetNames
+        : DEFAULT_RULES.sorSheetNames,
+      tos: { ...DEFAULT_RULES.tos, ...(input.tos || {}) },
+      ros: { ...DEFAULT_RULES.ros, ...(input.ros || {}) },
+      sor: { ...DEFAULT_RULES.sor, ...(input.sor || {}) }
+    };
+  }
+
+  function worksheetToMatrix(sheet) {
+    const ref = sheet && sheet["!ref"];
+    if (!ref) return { rows: [], startRow: 0, startCol: 0 };
+    const range = XLSX.utils.decode_range(ref);
+    const rows = [];
+    for (let r = range.s.r; r <= range.e.r; r += 1) {
+      const row = [];
+      for (let c = range.s.c; c <= range.e.c; c += 1) {
+        const cell = sheet[XLSX.utils.encode_cell({ r, c })];
+        row.push(cell ? (cell.w ?? cell.v ?? "") : "");
+      }
+      rows.push(row);
+    }
+    return { rows, startRow: range.s.r, startCol: range.s.c };
+  }
+
+  function findSheetName(sheetNames, candidates) {
+    const normalized = sheetNames.map((name) => ({ name, key: normalizeKey(name) }));
+    for (const candidate of candidates) {
+      const key = normalizeKey(candidate);
+      const exact = normalized.find((item) => item.key === key);
+      if (exact) return exact.name;
+    }
+    for (const candidate of candidates) {
+      const key = normalizeKey(candidate);
+      const partial = normalized.find((item) => item.key.includes(key) || key.includes(item.key));
+      if (partial) return partial.name;
+    }
+    return "";
+  }
+
+  function extractFileMeta(fileName) {
+    const base = fileName.replace(/\.[^.]+$/, "");
+    const standard = base.match(/^广告放映机_(.+)_(\d{4}-\d{2}-\d{2})$/);
+    if (standard) {
+      return { keyword: standard[1].trim(), date: standard[2] };
+    }
+    const dateMatch = base.match(/(\d{4}-\d{2}-\d{2})/);
+    const date = dateMatch ? dateMatch[1] : "";
+    const keyword = base
+      .replace(/^广告放映机[_-]?/, "")
+      .replace(date, "")
+      .replace(/[_-]+$/, "")
+      .trim() || base;
+    return { keyword, date };
+  }
+
+  function makeLogicalName(meta, fileName) {
+    if (meta.keyword && meta.date) return `广告放映机_${meta.keyword}_${meta.date}`;
+    return fileName.replace(/\.[^.]+$/, "");
+  }
+
+  function parseSpRank(value) {
+    const match = asText(value).match(/P\s*1\s*[-－]\s*(\d+)/i);
+    return match ? Number(match[1]) : null;
+  }
+
+  function rankToSpGroup(rank, rules) {
+    if (!rank) return "";
+    if (rank >= rules.tos.startRank && rank <= rules.tos.endRank) return rules.tos.label;
+    if (rank >= rules.ros.startRank && rank <= rules.ros.endRank) return rules.ros.label;
+    return "";
+  }
+
+  function sorRowToGroup(index, rules) {
+    if (index >= rules.sor.middleStart && index <= rules.sor.middleEnd) return rules.sor.middleLabel;
+    if (index >= rules.sor.bottomStart && index <= rules.sor.bottomEnd) return rules.sor.bottomLabel;
+    return "";
+  }
+
+  function pageMatches(value, target) {
+    const a = normalizeKey(value);
+    const b = normalizeKey(target);
+    if (a === b) return true;
+    const aNum = (a.match(/\d+/) || [])[0];
+    const bNum = (b.match(/\d+/) || [])[0];
+    return Boolean(aNum && bNum && aNum === bNum);
+  }
+
+  function updateAsinCount() {
+    const asins = parseAsins(els.asinText.value);
+    els.asinCount.textContent = `已识别 ${asins.length} 个我品 ASIN`;
+  }
+
+  function saveAsins() {
+    localStorage.setItem(ASIN_KEY, parseAsins(els.asinText.value).join("\n"));
+  }
+
+  function parseAsins(text) {
+    const matches = String(text || "").toUpperCase().match(/\bB0[A-Z0-9]{8}\b/g) || [];
+    return Array.from(new Set(matches));
+  }
+
+  function isTimeHeader(value) {
+    return /^\d{2}:\d{2}$/.test(normalizeTime(value));
+  }
+
+  function normalizeTime(value) {
+    const text = asText(value);
+    const match = text.match(/^(\d{1,2}):(\d{2})/);
+    if (!match) return "";
+    return `${String(Number(match[1])).padStart(2, "0")}:${match[2]}`;
+  }
+
+  function splitList(value) {
+    return String(value || "")
+      .split(/[,\n，]+/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
+  function normalizeKey(value) {
+    return asText(value)
+      .toLowerCase()
+      .replace(/\s+/g, "")
+      .replace(/[－–—]/g, "-");
+  }
+
+  function asText(value) {
+    if (value === null || value === undefined) return "";
+    return String(value).trim();
+  }
+
+  function toInt(value, fallback) {
+    const num = Number.parseInt(value, 10);
+    return Number.isFinite(num) ? num : fallback;
+  }
+
+  function percent(part, total) {
+    if (!total) return "0%";
+    return `${((part / total) * 100).toFixed(1)}%`;
+  }
+
+  function cellAddress(rowIndex, colIndex) {
+    return XLSX.utils.encode_cell({ r: rowIndex, c: colIndex });
+  }
+
+  function isExcelFile(name) {
+    return /\.(xlsx|xls|xlsm)$/i.test(name || "");
+  }
+
+  function formatFileSize(size) {
+    if (size < 1024) return `${size} B`;
+    if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+    return `${(size / 1024 / 1024).toFixed(1)} MB`;
+  }
+
+  function makeFileId(fileName) {
+    return `file-${Date.now()}-${Math.random().toString(36).slice(2)}-${normalizeKey(fileName).slice(0, 24)}`;
+  }
+
+  function escapeHtml(value) {
+    return String(value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  }
+
+  function escapeAttr(value) {
+    return escapeHtml(value).replace(/`/g, "&#096;");
+  }
+
+  function escapeCsv(value) {
+    const text = String(value ?? "");
+    if (/[",\n\r]/.test(text)) {
+      return `"${text.replace(/"/g, '""')}"`;
+    }
+    return text;
+  }
+
+  function dateStamp() {
+    const now = new Date();
+    const pad = (num) => String(num).padStart(2, "0");
+    return `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}`;
+  }
+
+  function setNotice(message, type = "info") {
+    els.notice.textContent = message;
+    els.notice.className = `notice show${type === "error" ? " error" : ""}`;
+  }
+
+  function clearNotice() {
+    els.notice.className = "notice";
+    els.notice.textContent = "";
+  }
+
+  function setUploadNotice(message, type = "info") {
+    els.uploadNotice.textContent = message;
+    els.uploadNotice.className = `notice show${type === "error" ? " error" : ""}`;
+  }
+
+  function clearUploadNotice() {
+    els.uploadNotice.className = "notice";
+    els.uploadNotice.textContent = "";
+  }
+
+  function setBusy(isBusy) {
+    els.analyzeBtn.disabled = isBusy;
+    els.applyFiltersBtn.disabled = isBusy;
+    els.analyzeBtn.textContent = isBusy ? "处理中" : "刷新汇总";
+  }
+
+  function ensureXlsx() {
+    if (!window.XLSX) {
+      throw new Error("XLSX 解析库未加载。请联网刷新页面后再试。");
+    }
+  }
+})();
+
+  </script>
+</body>
+</html>
