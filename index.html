@@ -423,6 +423,8 @@ B0GS5GRK2Y`;
   const SUPABASE_URL = "https://wulbkldrfhdljwgutcjl.supabase.co";
   const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_qomoFRv4SGkDGNNd1k7hgg_aAbjRvtY";
   const SHARED_REPORTS_TABLE = "shared_reports";
+  const SHARED_REPORT_CHUNKS_TABLE = "shared_report_chunks";
+  const SHARED_RECORD_CHUNK_SIZE = 500;
 
   const TABLE_COLUMNS = {
     position: ["广告位置", "我方商品数", "竞品商品数", "总数量", "我方占比", "竞品占比"],
@@ -792,7 +794,8 @@ B0GS5GRK2Y`;
       return false;
     }
 
-    applySharedSnapshot(data.result);
+    const snapshot = await hydrateSharedSnapshot(data.result);
+    applySharedSnapshot(snapshot);
     setShareStatus(`已加载云端数据：${formatDateTime(data.updated_at)}`);
     return true;
   }
@@ -810,10 +813,16 @@ B0GS5GRK2Y`;
           table: SHARED_REPORTS_TABLE,
           filter: `share_id=eq.${state.shareId}`
         },
-        (payload) => {
+        async (payload) => {
           if (!payload.new || !payload.new.result || state.applyingSharedSnapshot) return;
-          applySharedSnapshot(payload.new.result);
-          setShareStatus(`收到云端更新：${formatDateTime(payload.new.updated_at)}`);
+          try {
+            const snapshot = await hydrateSharedSnapshot(payload.new.result);
+            applySharedSnapshot(snapshot);
+            setShareStatus(`收到云端更新：${formatDateTime(payload.new.updated_at)}`);
+          } catch (error) {
+            console.error("读取共享分块失败：", error);
+            setShareStatus("共享分块读取失败，请检查 Supabase 权限");
+          }
         }
       )
       .subscribe((status) => {
@@ -828,14 +837,42 @@ B0GS5GRK2Y`;
       return false;
     }
 
-    const snapshot = makeSharedSnapshot(reason);
+    const sharedPayload = makeSharedPayload(reason);
+    const deleted = await supabaseClient
+      .from(SHARED_REPORT_CHUNKS_TABLE)
+      .delete()
+      .eq("share_id", state.shareId);
+
+    if (deleted.error) {
+      console.error("清理共享分块失败：", deleted.error);
+      setShareStatus("共享同步失败，请检查 shared_report_chunks 删除权限");
+      return false;
+    }
+
+    for (const chunk of sharedPayload.chunks) {
+      const inserted = await supabaseClient
+        .from(SHARED_REPORT_CHUNKS_TABLE)
+        .insert({
+          share_id: state.shareId,
+          chunk_index: chunk.chunkIndex,
+          payload: { records: chunk.records },
+          updated_at: sharedPayload.metadata.savedAt
+        });
+
+      if (inserted.error) {
+        console.error("写入共享分块失败：", inserted.error);
+        setShareStatus("共享同步失败，请检查 shared_report_chunks 写入权限");
+        return false;
+      }
+    }
+
     const { error } = await supabaseClient
       .from(SHARED_REPORTS_TABLE)
       .upsert({
         share_id: state.shareId,
         title: "SP/SOR广告分析",
-        result: snapshot,
-        updated_at: new Date().toISOString()
+        result: sharedPayload.metadata,
+        updated_at: sharedPayload.metadata.savedAt
       }, { onConflict: "share_id" });
 
     if (error) {
@@ -844,18 +881,105 @@ B0GS5GRK2Y`;
       return false;
     }
 
-    setShareStatus(`共享已同步：${formatDateTime(snapshot.savedAt)}`);
+    setShareStatus(`共享已同步：${formatDateTime(sharedPayload.metadata.savedAt)}`);
     return true;
   }
 
-  function makeSharedSnapshot(reason) {
+  function makeSharedPayload(reason) {
+    const savedAt = new Date().toISOString();
+    const files = state.storedFiles.map((file) => {
+      const cleanFile = stripBufferFromFile(file);
+      const { records, ...fileWithoutRecords } = cleanFile;
+      return {
+        ...fileWithoutRecords,
+        recordCount: Array.isArray(records) ? records.length : (file.recordCount || 0)
+      };
+    });
+    const records = state.storedFiles.flatMap((file) => {
+      return (file.records || []).map((record) => compactSharedRecord(record, file));
+    });
+    const chunks = [];
+    for (let index = 0; index < records.length; index += SHARED_RECORD_CHUNK_SIZE) {
+      chunks.push({
+        chunkIndex: chunks.length,
+        records: records.slice(index, index + SHARED_RECORD_CHUNK_SIZE)
+      });
+    }
+
     return {
-      version: 1,
-      reason,
-      savedAt: new Date().toISOString(),
-      asinText: els.asinText.value,
-      rules: getRulesFromForm(),
-      storedFiles: state.storedFiles.map(stripBufferFromFile)
+      metadata: {
+        version: 2,
+        chunked: true,
+        chunkCount: chunks.length,
+        recordCount: records.length,
+        fileCount: files.length,
+        savedAt,
+        reason,
+        asinText: els.asinText.value,
+        rules: getRulesFromForm(),
+        files
+      },
+      chunks
+    };
+  }
+
+  function compactSharedRecord(record, file) {
+    return {
+      id: record.id,
+      sourceFileId: record.sourceFileId || file.id,
+      fileName: record.fileName || file.fileName,
+      keyword: record.keyword || file.keyword,
+      date: record.date || file.date,
+      adType: record.adType,
+      sheetName: record.sheetName,
+      positionGroup: record.positionGroup,
+      rawPosition: record.rawPosition,
+      positionIndex: record.positionIndex,
+      page: record.page,
+      time: record.time,
+      asin: record.asin,
+      ownerType: record.ownerType,
+      sourceCell: record.sourceCell,
+      rowNumber: record.rowNumber,
+      colNumber: record.colNumber,
+      campaign: record.campaign
+    };
+  }
+
+  async function hydrateSharedSnapshot(snapshot) {
+    if (!snapshot || snapshot.version !== 2 || !snapshot.chunked) {
+      return snapshot;
+    }
+
+    const { data, error } = await supabaseClient
+      .from(SHARED_REPORT_CHUNKS_TABLE)
+      .select("chunk_index, payload")
+      .eq("share_id", state.shareId)
+      .order("chunk_index", { ascending: true });
+
+    if (error) {
+      throw error;
+    }
+
+    const files = (snapshot.files || []).map((file) => ({ ...file, records: [] }));
+    const fileMap = new Map(files.map((file) => [file.id, file]));
+    (data || []).forEach((chunk) => {
+      const records = chunk.payload && Array.isArray(chunk.payload.records) ? chunk.payload.records : [];
+      records.forEach((record) => {
+        const file = fileMap.get(record.sourceFileId);
+        if (file) {
+          file.records.push(record);
+        }
+      });
+    });
+
+    return {
+      version: 2,
+      reason: snapshot.reason,
+      savedAt: snapshot.savedAt,
+      asinText: snapshot.asinText,
+      rules: snapshot.rules,
+      storedFiles: files
     };
   }
 
