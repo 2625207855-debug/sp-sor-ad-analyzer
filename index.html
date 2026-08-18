@@ -200,7 +200,7 @@
             <div class="dropZone">
               <div class="dropTitle">历史文件会保留，只需要新增上传</div>
               <input id="workbookFiles" type="file" accept=".xlsx,.xls,.xlsm" multiple>
-              <div class="hint">文件名默认按"广告放映机_关键词_日期"识别；仅解析 SP / SOR，重复文件名会跳过并提示。</div>
+              <div class="hint">文件名默认按"广告放映机_关键词_日期"识别；仅解析 SP / SOR，只保留包含 ohuhu 的关键词，带 (1) / （1） / 副本 的重复下载会跳过。</div>
             </div>
             <div class="filterStatus" id="historyStats">已保存 0 个历史文件</div>
             <div class="notice" id="uploadNotice"></div>
@@ -425,6 +425,7 @@ B0GS5GRK2Y`;
   const SHARED_REPORTS_TABLE = "shared_reports";
   const SHARED_REPORT_CHUNKS_TABLE = "shared_report_chunks";
   const SHARED_RECORD_CHUNK_SIZE = 500;
+  const REQUIRED_KEYWORD = "ohuhu";
 
   const TABLE_COLUMNS = {
     position: ["广告位置", "我方商品数", "竞品商品数", "总数量", "我方占比", "竞品占比"],
@@ -1040,7 +1041,15 @@ B0GS5GRK2Y`;
       const skipped = [];
 
       for (const file of files) {
+        if (isDuplicateDownloadFile(file.name)) {
+          skipped.push(`${file.name}（重复下载文件）`);
+          continue;
+        }
         const meta = extractFileMeta(file.name);
+        if (!isAllowedKeyword(meta.keyword)) {
+          skipped.push(`${file.name}（关键词不包含 ${REQUIRED_KEYWORD}）`);
+          continue;
+        }
         const logicalName = makeLogicalName(meta, file.name);
         const fileKey = normalizeKey(file.name);
         const logicalKey = normalizeKey(logicalName);
@@ -2857,7 +2866,7 @@ B0GS5GRK2Y`;
   }
 
   function extractFileMeta(fileName) {
-    const base = fileName.replace(/\.[^.]+$/, "");
+    const base = cleanDownloadDuplicateMarker(fileName.replace(/\.[^.]+$/, ""));
     const standard = base.match(/^广告放映机_(.+)_(\d{4}-\d{2}-\d{2})$/);
     if (standard) {
       return { keyword: standard[1].trim(), date: standard[2] };
@@ -2870,6 +2879,21 @@ B0GS5GRK2Y`;
       .replace(/[_-]+$/, "")
       .trim() || base;
     return { keyword, date };
+  }
+
+  function isDuplicateDownloadFile(fileName) {
+    return /(?:\(\s*\d+\s*\)|（\s*\d+\s*）|副本)/i.test(fileName || "");
+  }
+
+  function cleanDownloadDuplicateMarker(value) {
+    return String(value || "")
+      .replace(/\s*(?:\(\s*\d+\s*\)|（\s*\d+\s*）)\s*$/g, "")
+      .replace(/\s*[-_ ]*副本(?:\s*\d+)?\s*$/i, "")
+      .trim();
+  }
+
+  function isAllowedKeyword(keyword) {
+    return normalizeKey(keyword).includes(REQUIRED_KEYWORD);
   }
 
   function makeLogicalName(meta, fileName) {
